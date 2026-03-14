@@ -14,6 +14,49 @@
   let portalData  = {};
   let updateData  = {};
   let loading     = false;
+  let checking    = false;
+  let applying    = false;
+  let updateMsg   = '';
+  let updateMsgError = false;
+  let updatePollId = null;
+
+  async function checkForUpdates() {
+    checking = true; updateMsg = '';
+    try {
+      const r = await fetch('/api/system/update/check', { headers: hdrs() });
+      const d = await r.json();
+      updateData = { ...updateData, ...d };
+      if (d.updateAvailable) { updateMsg = `Versión ${d.latestVersion} disponible`; updateMsgError = false; }
+      else { updateMsg = 'Ya estás en la última versión'; updateMsgError = false; }
+    } catch (e) { updateMsg = 'Error comprobando'; updateMsgError = true; }
+    checking = false;
+  }
+
+  async function applyUpdate() {
+    applying = true; updateMsg = 'Aplicando actualización...';
+    try {
+      const r = await fetch('/api/system/update/apply', { method: 'POST', headers: hdrs() });
+      const d = await r.json();
+      if (d.ok) {
+        updateMsg = 'Actualización en progreso. Espera...';
+        updateMsgError = false;
+        // Poll status
+        updatePollId = setInterval(async () => {
+          try {
+            const sr = await fetch('/api/system/update/status', { headers: hdrs() });
+            const sd = await sr.json();
+            if (sd.done) {
+              clearInterval(updatePollId);
+              applying = false;
+              if (sd.type === 'error') { updateMsg = sd.error || 'Error en la actualización'; updateMsgError = true; }
+              else { updateMsg = `Actualizado: ${sd.prev || '?'} → ${sd.new || '?'}. Recarga el navegador.`; updateMsgError = false; }
+              updateData = sd;
+            }
+          } catch {}
+        }, 3000);
+      } else { updateMsg = d.error || 'Error'; updateMsgError = true; applying = false; }
+    } catch (e) { updateMsg = 'Error de conexión'; updateMsgError = true; applying = false; }
+  }
 
   async function loadTab(tab) {
     loading = true;
@@ -106,26 +149,53 @@
     <!-- ══ UPDATES ══ -->
     {:else if activeSub === 'updates'}
       <div class="section-label">Actualizaciones</div>
+
       <div class="field-group">
         <div class="field-row">
           <span class="field-label">Versión actual</span>
-          <span class="field-value">{updateData.current || updateData.version || '—'}</span>
+          <span class="field-value">{updateData.currentVersion || updateData.current || updateData.version || '—'}</span>
         </div>
         <div class="field-row">
-          <span class="field-label">Última comprobación</span>
-          <span class="field-value">{updateData.lastCheck || '—'}</span>
+          <span class="field-label">Última versión</span>
+          <span class="field-value">{updateData.latestVersion || updateData.latest || '—'}</span>
         </div>
         <div class="field-row">
           <span class="field-label">Estado</span>
-          <span class="field-value" style="color:{updateData.available ? 'var(--amber)' : 'var(--green)'}">
-            {updateData.available ? 'Actualización disponible' : 'Al día'}
+          <span class="field-value" style="color:{updateData.updateAvailable ? 'var(--amber)' : 'var(--green)'}">
+            {updateData.updateAvailable ? 'Actualización disponible' : 'Al día'}
           </span>
         </div>
       </div>
-      {#if updateData.available}
+
+      <div class="update-actions">
+        <button class="btn-secondary" on:click={checkForUpdates} disabled={checking || applying}>
+          {checking ? 'Comprobando...' : 'Comprobar actualizaciones'}
+        </button>
+        {#if updateData.updateAvailable}
+          <button class="btn-accent" on:click={applyUpdate} disabled={applying}>
+            {applying ? 'Actualizando...' : 'Aplicar actualización'}
+          </button>
+        {/if}
+      </div>
+
+      {#if updateMsg}
+        <div class="update-msg" class:error={updateMsgError}>{updateMsg}</div>
+      {/if}
+
+      {#if applying}
+        <div class="update-progress">
+          <div class="spinner" style="width:18px;height:18px"></div>
+          <span>No cierres el navegador</span>
+        </div>
+      {/if}
+
+      {#if updateData.type === 'full'}
         <div class="update-card">
-          <div class="update-version">{updateData.latest || 'Nueva versión'}</div>
-          <div class="update-notes">{updateData.notes || ''}</div>
+          <span>✓ Daemon recompilado y reiniciado</span>
+        </div>
+      {:else if updateData.type === 'frontend'}
+        <div class="update-card">
+          <span>✓ Frontend actualizado — recarga el navegador</span>
         </div>
       {/if}
     {/if}
@@ -204,8 +274,32 @@
   /* ── UPDATES ── */
   .update-card {
     margin-top:12px; padding:12px 14px; border-radius:8px;
-    border:1px solid rgba(251,191,36,0.25); background:rgba(251,191,36,0.06);
+    border:1px solid rgba(74,222,128,0.25); background:rgba(74,222,128,0.06);
+    font-size:11px; color:var(--green);
   }
   .update-version { font-size:12px; font-weight:600; color:var(--amber); margin-bottom:4px; }
   .update-notes { font-size:11px; color:var(--text-2); }
+  .update-actions { display:flex; gap:8px; margin-top:16px; }
+  .btn-accent {
+    padding:8px 16px; border-radius:8px; border:none;
+    background:linear-gradient(135deg, var(--accent), var(--accent2));
+    color:#fff; font-size:11px; font-weight:600; cursor:pointer;
+    font-family:inherit; transition:opacity .15s;
+  }
+  .btn-accent:hover { opacity:.88; }
+  .btn-accent:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-secondary {
+    padding:8px 16px; border-radius:8px;
+    border:1px solid var(--border); background:var(--ibtn-bg);
+    color:var(--text-2); font-size:11px; font-weight:500; cursor:pointer;
+    font-family:inherit; transition:all .15s;
+  }
+  .btn-secondary:hover { color:var(--text-1); border-color:var(--border-hi); }
+  .btn-secondary:disabled { opacity:.5; cursor:not-allowed; }
+  .update-msg { font-size:11px; margin-top:10px; color:var(--green); }
+  .update-msg.error { color:var(--red); }
+  .update-progress {
+    display:flex; align-items:center; gap:10px;
+    margin-top:12px; font-size:11px; color:var(--text-2);
+  }
 </style>
