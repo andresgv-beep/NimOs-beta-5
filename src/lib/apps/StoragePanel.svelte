@@ -10,6 +10,20 @@
   let nvme = [];
   let selectedDisk = null;
 
+  // Create pool state
+  let newPool = { name: '', level: '1', filesystem: 'ext4', disks: [] };
+  let creating = false;
+  let poolMsg = '';
+  let poolMsgError = false;
+
+  // Restore pool state
+  let restorable = [];
+  let restorableScanned = false;
+  let scanning = false;
+  let restoring = false;
+  let restoreMsg = '';
+  let restoreMsgError = false;
+
   const hdrs = () => ({ 'Authorization': `Bearer ${getToken()}` });
 
   async function load() {
@@ -45,6 +59,62 @@
 
   function selectDisk(d) {
     selectedDisk = selectedDisk?.name === d.name ? null : d;
+  }
+
+  function toggleDiskSelect(name) {
+    if (newPool.disks.includes(name)) {
+      newPool.disks = newPool.disks.filter(n => n !== name);
+    } else {
+      newPool.disks = [...newPool.disks, name];
+    }
+  }
+
+  async function createPool() {
+    if (!newPool.name.trim()) { poolMsg = 'Introduce un nombre'; poolMsgError = true; return; }
+    if (newPool.disks.length === 0) { poolMsg = 'Selecciona al menos un disco'; poolMsgError = true; return; }
+    creating = true; poolMsg = '';
+    try {
+      const res = await fetch('/api/storage/pool', {
+        method: 'POST',
+        headers: { ...hdrs(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newPool.name.trim(), level: newPool.level, filesystem: newPool.filesystem, disks: newPool.disks }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        poolMsg = `Pool "${newPool.name}" creado correctamente`; poolMsgError = false;
+        newPool = { name: '', level: '1', filesystem: 'ext4', disks: [] };
+        load();
+      } else {
+        poolMsg = data.error || 'Error al crear pool'; poolMsgError = true;
+      }
+    } catch (e) { poolMsg = 'Error de conexión'; poolMsgError = true; }
+    creating = false;
+  }
+
+  async function scanRestorable() {
+    scanning = true; restoreMsg = '';
+    try {
+      const res = await fetch('/api/storage/restorable', { headers: hdrs() });
+      const data = await res.json();
+      restorable = data.pools || [];
+      restorableScanned = true;
+    } catch (e) { restoreMsg = 'Error escaneando'; restoreMsgError = true; }
+    scanning = false;
+  }
+
+  async function restorePool(name) {
+    restoring = true; restoreMsg = '';
+    try {
+      const res = await fetch('/api/storage/pool/restore', {
+        method: 'POST',
+        headers: { ...hdrs(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (data.ok) { restoreMsg = `Pool "${name}" restaurado`; restoreMsgError = false; load(); }
+      else { restoreMsg = data.error || 'Error restaurando'; restoreMsgError = true; }
+    } catch (e) { restoreMsg = 'Error de conexión'; restoreMsgError = true; }
+    restoring = false;
   }
 
   $: hddSlots  = Array.from({ length: 4 }, (_, i) => eligible[i] || null);
@@ -201,29 +271,131 @@
       </div>
 
     {:else if activeTab === 'pools'}
-      <div class="section-label">Pools de almacenamiento</div>
-      {#if pools.length === 0}
-        <p class="coming-soon">No hay pools configurados</p>
-      {:else}
+      <div class="section-label">Storage Manager</div>
+
+      {#if pools.length > 0}
         {#each pools as pool}
           <div class="pool-row">
             <div class="pool-led" class:healthy={pool.health === 'ONLINE'}></div>
             <div class="pool-info">
               <div class="pool-name">{pool.name} {#if pool.primary}<span class="pool-primary">Primary</span>{/if}</div>
-              <div class="pool-meta">{pool.type || 'RAID'} · {pool.mountpoint || '—'} · {fmt(pool.size)}</div>
+              <div class="pool-meta">{pool.raidLevel || pool.type || 'RAID'} · {pool.mountpoint || '—'} · {fmt(pool.size)}</div>
             </div>
             <div class="pool-badge" class:green={pool.health === 'ONLINE'}>{pool.health || '—'}</div>
           </div>
         {/each}
+        <div class="pool-sep"></div>
       {/if}
+
+      <!-- Create pool form -->
+      <div class="section-label" style="margin-top:12px">Crear nuevo pool</div>
+
+      <div class="create-form">
+        <div class="form-field">
+          <label class="form-label">Nombre del pool</label>
+          <input class="form-input" type="text" placeholder="main-storage" bind:value={newPool.name} />
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Nivel RAID</label>
+          <select class="form-select" bind:value={newPool.level}>
+            <option value="single">Single (sin redundancia)</option>
+            <option value="0">RAID 0 (striping, 2+ discos)</option>
+            <option value="1">RAID 1 (mirror, 2 discos)</option>
+            <option value="5">RAID 5 (parity, 3+ discos)</option>
+            <option value="6">RAID 6 (dual parity, 4+ discos)</option>
+            <option value="10">RAID 10 (mirror+stripe, 4+ discos)</option>
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Filesystem</label>
+          <select class="form-select" bind:value={newPool.filesystem}>
+            <option value="ext4">ext4 (recomendado)</option>
+            <option value="xfs">XFS</option>
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Discos disponibles</label>
+          <div class="disk-select-list">
+            {#each eligible.filter(d => !d.provisioned) as disk}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div class="disk-select-row" class:selected={newPool.disks.includes(disk.name)} on:click={() => toggleDiskSelect(disk.name)}>
+                <div class="dsr-check">{newPool.disks.includes(disk.name) ? '✓' : ''}</div>
+                <div class="dsr-name">{disk.name}</div>
+                <div class="dsr-model">{disk.model || '—'}</div>
+                <div class="dsr-size">{fmt(disk.size)}</div>
+              </div>
+            {/each}
+            {#if eligible.filter(d => !d.provisioned).length === 0}
+              <p class="coming-soon">No hay discos disponibles</p>
+            {/if}
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-accent" on:click={createPool} disabled={creating}>
+            {creating ? 'Creando...' : 'Crear Pool'}
+          </button>
+        </div>
+
+        {#if poolMsg}
+          <div class="pool-msg" class:error={poolMsgError}>{poolMsg}</div>
+        {/if}
+      </div>
 
     {:else if activeTab === 'health'}
       <div class="section-label">Estado de salud</div>
-      <p class="coming-soon">SMART monitoring — coming soon</p>
+      {#if pools.length > 0}
+        {#each pools as pool}
+          <div class="pool-row">
+            <div class="pool-led" class:healthy={pool.health === 'ONLINE'}></div>
+            <div class="pool-info">
+              <div class="pool-name">{pool.name}</div>
+              <div class="pool-meta">{pool.raidLevel || '—'} · {pool.health || '—'}</div>
+            </div>
+          </div>
+        {/each}
+      {:else}
+        <p class="coming-soon">No hay pools para monitorizar</p>
+      {/if}
 
     {:else if activeTab === 'restore'}
       <div class="section-label">Restaurar pool</div>
-      <p class="coming-soon">Pool restore — coming soon</p>
+      <p style="font-size:11px;color:var(--text-3);margin-bottom:14px">
+        Detectar y restaurar pools existentes de discos que ya tenían NimOS configurado.
+      </p>
+
+      <button class="btn-secondary" on:click={scanRestorable} disabled={scanning}>
+        {scanning ? 'Escaneando...' : 'Escanear discos'}
+      </button>
+
+      {#if restorableScanned}
+        {#if restorable.length === 0}
+          <p class="coming-soon" style="margin-top:12px">No se encontraron pools restaurables</p>
+        {:else}
+          <div style="margin-top:14px">
+            {#each restorable as pool}
+              <div class="pool-row">
+                <div class="pool-led"></div>
+                <div class="pool-info">
+                  <div class="pool-name">{pool.name}</div>
+                  <div class="pool-meta">{pool.raidLevel || '—'} · {pool.disks?.length || 0} discos · {pool.filesystem || '—'}</div>
+                </div>
+                <button class="btn-accent" style="margin-left:auto;padding:4px 10px;font-size:10px" on:click={() => restorePool(pool.name)} disabled={restoring}>
+                  {restoring ? '...' : 'Restaurar'}
+                </button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      {/if}
+
+      {#if restoreMsg}
+        <div class="pool-msg" class:error={restoreMsgError} style="margin-top:10px">{restoreMsg}</div>
+      {/if}
     {/if}
 
   </div>
@@ -317,4 +489,58 @@
   .pool-badge { margin-left:auto; padding:3px 8px; border-radius:20px; font-size:9px; font-weight:600; background:var(--ibtn-bg); border:1px solid var(--border); color:var(--text-2); }
   .pool-badge.green { background:rgba(74,222,128,0.10); border-color:rgba(74,222,128,0.25); color:var(--green); }
   .coming-soon { color:var(--text-3); font-size:12px; }
+
+  /* ── CREATE POOL FORM ── */
+  .create-form { display:flex; flex-direction:column; gap:14px; max-width:460px; }
+  .form-field { display:flex; flex-direction:column; gap:4px; }
+  .form-label { font-size:10px; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:.06em; }
+  .form-input, .form-select {
+    padding:9px 12px; border-radius:8px;
+    background:rgba(255,255,255,0.04); border:1px solid var(--border);
+    color:var(--text-1); font-size:12px; font-family:'DM Sans',sans-serif;
+    outline:none; transition:border-color .2s;
+  }
+  .form-input:focus, .form-select:focus { border-color:var(--accent); }
+  .form-input::placeholder { color:var(--text-3); }
+  .form-select { cursor:pointer; -webkit-appearance:none; appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 12px center; padding-right:32px;
+  }
+  .form-select option { background:var(--bg-inner); color:var(--text-1); }
+
+  .disk-select-list { display:flex; flex-direction:column; gap:2px; }
+  .disk-select-row {
+    display:flex; align-items:center; gap:8px;
+    padding:7px 10px; border-radius:6px; cursor:pointer;
+    border:1px solid var(--border); transition:all .15s;
+    font-size:11px;
+  }
+  .disk-select-row:hover { border-color:var(--border-hi); }
+  .disk-select-row.selected { background:var(--active-bg); border-color:var(--border-hi); }
+  .dsr-check { width:16px; font-size:11px; color:var(--accent); text-align:center; }
+  .dsr-name { font-weight:600; color:var(--text-1); font-family:'DM Mono',monospace; }
+  .dsr-model { color:var(--text-3); flex:1; }
+  .dsr-size { color:var(--text-2); font-family:'DM Mono',monospace; margin-left:auto; }
+
+  .form-actions { display:flex; gap:8px; margin-top:4px; }
+  .btn-accent {
+    padding:8px 16px; border-radius:8px; border:none;
+    background:linear-gradient(135deg, var(--accent), var(--accent2));
+    color:#fff; font-size:11px; font-weight:600; cursor:pointer;
+    font-family:inherit; transition:opacity .15s;
+  }
+  .btn-accent:hover { opacity:.88; }
+  .btn-accent:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-secondary {
+    padding:8px 16px; border-radius:8px;
+    border:1px solid var(--border); background:var(--ibtn-bg);
+    color:var(--text-2); font-size:11px; font-weight:500; cursor:pointer;
+    font-family:inherit; transition:all .15s;
+  }
+  .btn-secondary:hover { color:var(--text-1); border-color:var(--border-hi); }
+  .btn-secondary:disabled { opacity:.5; cursor:not-allowed; }
+
+  .pool-msg { font-size:11px; color:var(--green); padding:6px 0; }
+  .pool-msg.error { color:var(--red); }
+  .pool-sep { height:1px; background:var(--border); margin:12px 0; }
 </style>
