@@ -217,6 +217,13 @@
 
     <!-- ══ PERMISSIONS: SHARED FOLDERS ══ -->
     {:else if activeSub === 'sharefolders'}
+      <div class="sub-tabs">
+        {#each [['sharefolders','Shared Folders'],['apppermissions','App Permissions']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
       <div class="section-label">Carpetas compartidas</div>
 
       {#if shares.length > 0}
@@ -317,6 +324,13 @@
 
     <!-- ══ PERMISSIONS: APP PERMISSIONS ══ -->
     {:else if activeSub === 'apppermissions'}
+      <div class="sub-tabs">
+        {#each [['sharefolders','Shared Folders'],['apppermissions','App Permissions']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
       <div class="section-label">Permisos de aplicaciones</div>
       <p class="coming-soon">App permissions — coming soon</p>
 
@@ -542,4 +556,22 @@
     display:flex; align-items:center; gap:10px;
     margin-top:12px; font-size:11px; color:var(--text-2);
   }
+
+  /* ── SUB-TABS ── */
+  .sub-tabs {
+    display:flex; gap:4px; margin-bottom:16px;
+    padding-bottom:12px; border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+  .sub-tab {
+    padding:5px 12px; border-radius:6px; cursor:pointer;
+    font-size:11px; font-weight:500; color:var(--text-3);
+    border:1px solid transparent; transition:all .15s;
+  }
+  .sub-tab:hover { color:var(--text-2); background:rgba(128,128,128,0.06); }
+  .sub-tab.active {
+    background:var(--active-bg); color:var(--text-1);
+    border-color:var(--border-hi);
+  }
+
 </style>

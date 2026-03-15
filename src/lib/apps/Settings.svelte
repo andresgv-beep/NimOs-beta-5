@@ -6,87 +6,47 @@
   import NetworkPanel from '$lib/apps/NetworkPanel.svelte';
   import SystemPanel  from '$lib/apps/SystemPanel.svelte';
 
-  let activeView = 'system';
+  let activeView    = 'system';
   let appearanceTab = 'tema';
-  let storageTab = 'disks';
-  let networkTab = 'interfaces';
-  let networkSub = 'interfaces';
-  let sidebarLevel = 'root'; // 'root' | 'network-sub' | 'system-sub'
-  let systemTab = 'monitor';
-  let systemSub = 'monitor';
+  let storageTab    = 'disks';
+  let networkTab    = 'interfaces';
+  let networkSub    = 'interfaces';
+  let systemTab     = 'monitor';
+  let systemSub     = 'monitor';
 
-  const networkSubSections = {
-    interfaces:   [{ id: 'interfaces', label: 'Network Interfaces' }, { id: 'dns', label: 'DNS' }],
-    services:     [{ id: 'smb', label: 'SMB / CIFS' }, { id: 'ssh', label: 'SSH' }, { id: 'ftp', label: 'FTP / SFTP' }, { id: 'nfs', label: 'NFS' }, { id: 'webdav', label: 'WebDAV' }],
-    remoteaccess: [{ id: 'ports', label: 'Port Exposure' }, { id: 'ddns', label: 'DDNS' }, { id: 'proxy', label: 'Reverse Proxy' }, { id: 'certs', label: 'Certificates' }],
-    security:     [{ id: 'firewall', label: 'Firewall' }, { id: 'fail2ban', label: 'Fail2ban' }],
-  };
-
-  const systemSubSections = {
-    monitor:     [{ id: 'monitor', label: 'Monitor' }],
-    users:       [{ id: 'users', label: 'Users' }],
-    permissions: [{ id: 'sharefolders', label: 'Shared Folders' }, { id: 'apppermissions', label: 'App Permissions' }],
-    portal:      [{ id: 'portal', label: 'Portal' }],
-    updates:     [{ id: 'updates', label: 'Updates' }],
-  };
-
-  const networkTabLabel = { interfaces: 'Interfaces', services: 'Services', remoteaccess: 'Remote Access', security: 'Security' };
-  const systemTabLabel  = { monitor: 'Monitor', users: 'Users', permissions: 'Permissions', portal: 'Portal', updates: 'Updates' };
-
-  function enterNetwork() {
-    activeView = 'network';
-    sidebarLevel = 'network-sub';
-    networkSub = networkSubSections[networkTab]?.[0]?.id;
-  }
-
-  function enterSystem() {
-    activeView = 'system-panel';
-    sidebarLevel = 'system-sub';
-    systemSub = systemSubSections[systemTab]?.[0]?.id;
-  }
-
-  function goBack() { sidebarLevel = 'root'; }
+  // Network subsection defaults per tab
+  const networkSubDefaults = { interfaces:'interfaces', services:'smb', remoteaccess:'ports', security:'firewall' };
+  const systemSubDefaults  = { monitor:'monitor', users:'users', permissions:'sharefolders', portal:'portal', updates:'updates' };
 
   let prevNetworkTab = networkTab;
-  let prevSystemTab = systemTab;
-  $: if (networkTab !== prevNetworkTab) {
-    prevNetworkTab = networkTab;
-    networkSub = networkSubSections[networkTab]?.[0]?.id || 'interfaces';
-    if (activeView === 'network') sidebarLevel = 'network-sub';
-  }
-  $: if (systemTab !== prevSystemTab) {
-    prevSystemTab = systemTab;
-    systemSub = systemSubSections[systemTab]?.[0]?.id || 'monitor';
-    if (activeView === 'system-panel') sidebarLevel = 'system-sub';
-  }
+  let prevSystemTab  = systemTab;
+  $: if (networkTab !== prevNetworkTab) { prevNetworkTab = networkTab; networkSub = networkSubDefaults[networkTab] ?? networkTab; }
+  $: if (systemTab  !== prevSystemTab)  { prevSystemTab  = systemTab;  systemSub  = systemSubDefaults[systemTab]  ?? systemTab; }
 
   const sidebarItems = [
-    { id: 'system', section: 'Sistema', label: 'Sistema', icon: 'grid' },
-    { id: 'storage', section: 'Sistema', label: 'Storage', icon: 'db' },
-    { id: 'network', section: 'Sistema', label: 'Red', icon: 'net' },
-    { id: 'security', section: 'Sistema', label: 'Seguridad', icon: 'shield' },
-    { id: 'appearance', section: 'Preferencias', label: 'Apariencia', icon: 'eye' },
-    { id: 'about', section: 'Preferencias', label: 'Acerca de', icon: 'clock' },
+    { id: 'system',     section: 'Sistema',      label: 'Sistema',    icon: 'grid'   },
+    { id: 'storage',    section: 'Sistema',      label: 'Storage',    icon: 'db'     },
+    { id: 'network',    section: 'Sistema',      label: 'Red',        icon: 'net'    },
+    { id: 'security',   section: 'Sistema',      label: 'Seguridad',  icon: 'shield' },
+    { id: 'appearance', section: 'Preferencias', label: 'Apariencia', icon: 'eye'    },
+    { id: 'about',      section: 'Preferencias', label: 'Acerca de',  icon: 'clock'  },
   ];
 
   const themeLabels = { midnight: 'Midnight', dark: 'Dark', light: 'Light' };
+  function setTheme(t)  { setPref('theme', t); }
+  function setAccent(n) { setPref('accentColor', n); }
 
-  function setTheme(t) {
-    setPref('theme', t);
-  }
-
-  function setAccent(name) {
-    setPref('accentColor', name);
-  }
-
-  $: currentTheme = $prefs.theme || 'midnight';
+  $: currentTheme  = $prefs.theme       || 'midnight';
   $: currentAccent = $prefs.accentColor || 'orange';
-  $: userName = $user?.username || 'User';
-  $: userRole = $user?.role || 'user';
+  $: userName      = $user?.username    || 'User';
+  $: userRole      = $user?.role        || 'user';
+
+  // Subtitle label
+  const viewLabel = { system:'Sistema', storage:'Storage', network:'Red', security:'Seguridad', appearance:'Apariencia', about:'Acerca de' };
 </script>
 
 <div class="settings-root">
-  <!-- SIDEBAR -->
+  <!-- SIDEBAR — always flat, no drill-down -->
   <div class="sidebar">
     <div class="sb-user">
       <div class="sb-avatar">{userName[0].toUpperCase()}</div>
@@ -98,74 +58,29 @@
 
     <div class="sb-search">⌕ Buscar…</div>
 
-    {#if sidebarLevel === 'root'}
-      <!-- LEVEL 1 — all categories -->
-      <div class="sb-section">Sistema</div>
-      {#each sidebarItems.filter(i => i.section === 'Sistema') as item}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
-          class="sb-item"
-          class:active={activeView === item.id || (item.id === 'system' && activeView === 'system-panel')}
-          on:click={() => {
-            if (item.id === 'network') { enterNetwork(); }
-            else if (item.id === 'system') { enterSystem(); }
-            else { activeView = item.id; }
-          }}
-        >
-          <span class="sb-ico">
-            {#if item.icon === 'grid'}⊞{:else if item.icon === 'db'}⛁{:else if item.icon === 'net'}⬡{:else if item.icon === 'shield'}⛨{:else}●{/if}
-          </span>
-          {item.label}
-        </div>
-      {/each}
-
-      <div class="sb-section" style="margin-top:8px">Preferencias</div>
-      {#each sidebarItems.filter(i => i.section === 'Preferencias') as item}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="sb-item" class:active={activeView === item.id} on:click={() => activeView = item.id}>
-          <span class="sb-ico">
-            {#if item.icon === 'eye'}◉{:else if item.icon === 'clock'}◷{:else}●{/if}
-          </span>
-          {item.label}
-        </div>
-      {/each}
-
-    {:else if sidebarLevel === 'network-sub'}
-      <!-- LEVEL 2 — network subsections -->
+    <div class="sb-section">Sistema</div>
+    {#each sidebarItems.filter(i => i.section === 'Sistema') as item}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="sb-back" on:click={goBack}>
-        <span class="sb-back-arrow">‹</span>
-        Red
+      <div class="sb-item" class:active={activeView === item.id} on:click={() => activeView = item.id}>
+        <span class="sb-ico">
+          {#if item.icon === 'grid'}⊞{:else if item.icon === 'db'}⛁{:else if item.icon === 'net'}⬡{:else if item.icon === 'shield'}⛨{:else}●{/if}
+        </span>
+        {item.label}
       </div>
-      <div class="sb-divider"></div>
-      {#each networkSubSections[networkTab] ?? [] as sub}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="sb-item" class:active={networkSub === sub.id} on:click={() => networkSub = sub.id}>
-          {sub.label}
-        </div>
-      {/each}
+    {/each}
 
-    {:else if sidebarLevel === 'system-sub'}
-      <!-- LEVEL 2 — system subsections -->
+    <div class="sb-section" style="margin-top:8px">Preferencias</div>
+    {#each sidebarItems.filter(i => i.section === 'Preferencias') as item}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="sb-back" on:click={goBack}>
-        <span class="sb-back-arrow">‹</span>
-        Sistema
+      <div class="sb-item" class:active={activeView === item.id} on:click={() => activeView = item.id}>
+        <span class="sb-ico">
+          {#if item.icon === 'eye'}◉{:else if item.icon === 'clock'}◷{:else}●{/if}
+        </span>
+        {item.label}
       </div>
-      <div class="sb-divider"></div>
-      {#each systemSubSections[systemTab] ?? [] as sub}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="sb-item" class:active={systemSub === sub.id} on:click={() => systemSub = sub.id}>
-          {sub.label}
-        </div>
-      {/each}
-    {/if}
+    {/each}
 
     <div class="sb-bottom">
       <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -180,68 +95,55 @@
   <!-- INNER -->
   <div class="inner-wrap">
     <div class="inner">
+      <!-- TITLEBAR -->
       <div class="inner-titlebar">
         <div class="tb-title">NimSettings</div>
-        <div class="tb-sub">— {
-          activeView === 'network' ? (networkTabLabel[networkTab] || 'Red') :
-          activeView === 'system-panel' ? (systemTabLabel[systemTab] || 'Sistema') :
-          sidebarItems.find(i => i.id === activeView)?.label || ''
-        }</div>
+        <div class="tb-sub">— {viewLabel[activeView] || ''}</div>
+
         {#if activeView === 'appearance'}
           <div class="tb-tabs">
-            <TabNav
-              tabs={[
-                { id: 'tema', label: 'Tema' },
-                { id: 'fondos', label: 'Fondos' },
-                { id: 'widgets', label: 'Widgets' },
-                { id: 'taskbar', label: 'Taskbar' },
-              ]}
-              bind:active={appearanceTab}
-            />
+            <TabNav tabs={[
+              { id:'tema',    label:'Tema'     },
+              { id:'fondos',  label:'Fondos'   },
+              { id:'widgets', label:'Widgets'  },
+              { id:'taskbar', label:'Taskbar'  },
+            ]} bind:active={appearanceTab} />
           </div>
         {:else if activeView === 'storage'}
           <div class="tb-tabs">
-            <TabNav
-              tabs={[
-                { id: 'disks',   label: 'Disks' },
-                { id: 'pools',   label: 'Storage Manager' },
-                { id: 'health',  label: 'Health' },
-                { id: 'restore', label: 'Restore Pool' },
-              ]}
-              bind:active={storageTab}
-            />
+            <TabNav tabs={[
+              { id:'disks',   label:'Disks'            },
+              { id:'pools',   label:'Storage Manager'  },
+              { id:'health',  label:'Health'           },
+              { id:'restore', label:'Restore Pool'     },
+            ]} bind:active={storageTab} />
           </div>
         {:else if activeView === 'network'}
           <div class="tb-tabs">
-            <TabNav
-              tabs={[
-                { id: 'interfaces',   label: 'Interfaces' },
-                { id: 'services',     label: 'Services' },
-                { id: 'remoteaccess', label: 'Remote Access' },
-                { id: 'security',     label: 'Security' },
-              ]}
-              bind:active={networkTab}
-            />
+            <TabNav tabs={[
+              { id:'interfaces',   label:'Interfaces'    },
+              { id:'services',     label:'Services'      },
+              { id:'remoteaccess', label:'Remote Access' },
+              { id:'security',     label:'Security'      },
+            ]} bind:active={networkTab} />
           </div>
-        {:else if activeView === 'system-panel'}
+        {:else if activeView === 'system'}
           <div class="tb-tabs">
-            <TabNav
-              tabs={[
-                { id: 'monitor',     label: 'Monitor' },
-                { id: 'users',       label: 'Users' },
-                { id: 'permissions', label: 'Permissions' },
-                { id: 'portal',      label: 'Portal' },
-                { id: 'updates',     label: 'Updates' },
-              ]}
-              bind:active={systemTab}
-            />
+            <TabNav tabs={[
+              { id:'monitor',     label:'Monitor'     },
+              { id:'users',       label:'Users'       },
+              { id:'permissions', label:'Permissions' },
+              { id:'portal',      label:'Portal'      },
+              { id:'updates',     label:'Updates'     },
+            ]} bind:active={systemTab} />
           </div>
         {/if}
       </div>
 
-      <div class="inner-content" class:no-pad={activeView === 'storage' || activeView === 'network' || activeView === 'system-panel'}>
-        {#if activeView === 'appearance'}
+      <!-- CONTENT -->
+      <div class="inner-content" class:no-pad={activeView === 'storage' || activeView === 'network' || activeView === 'system'}>
 
+        {#if activeView === 'appearance'}
           {#if appearanceTab === 'tema'}
             <div class="section-label">Tema del sistema</div>
             <div class="theme-row">
@@ -261,30 +163,21 @@
                 </div>
               {/each}
             </div>
-
             <div class="section-label" style="margin-top:24px">Color de acento</div>
             <div class="accent-row">
               {#each Object.entries(ACCENT_COLORS) as [name, color]}
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <div
-                  class="accent-dot"
-                  class:active={currentAccent === name}
-                  style="background:{color}"
-                  on:click={() => setAccent(name)}
-                  title={name}
-                ></div>
+                <div class="accent-dot" class:active={currentAccent === name}
+                  style="background:{color}" on:click={() => setAccent(name)} title={name}></div>
               {/each}
             </div>
-
           {:else if appearanceTab === 'fondos'}
             <div class="section-label">Fondos de escritorio</div>
             <p style="color:var(--text-3);font-size:12px">Wallpaper selector — coming soon</p>
-
           {:else if appearanceTab === 'widgets'}
             <div class="section-label">Widgets del escritorio</div>
             <p style="color:var(--text-3);font-size:12px">Widget configuration — coming soon</p>
-
           {:else if appearanceTab === 'taskbar'}
             <div class="section-label">Posición</div>
             <div class="setting-row">
@@ -310,18 +203,14 @@
           {/if}
 
         {:else if activeView === 'system'}
-          <!-- Old system grid — now redirects to system-panel via sidebar -->
-          <div class="section-label">Sistema</div>
-          <p style="color:var(--text-3);font-size:12px">Selecciona una sección en el sidebar.</p>
-
-        {:else if activeView === 'system-panel'}
-          <SystemPanel activeTab={systemTab} activeSub={systemSub} />
+          <!-- SystemPanel handles its own sub-tabs internally -->
+          <SystemPanel activeTab={systemTab} activeSub={systemSub} bind:activeSub={systemSub} />
 
         {:else if activeView === 'storage'}
           <StoragePanel activeTab={storageTab} />
 
         {:else if activeView === 'network'}
-          <NetworkPanel activeTab={networkTab} activeSub={networkSub} />
+          <NetworkPanel activeTab={networkTab} activeSub={networkSub} bind:activeSub={networkSub} />
 
         {:else if activeView === 'security'}
           <div class="section-label">Seguridad</div>
@@ -341,7 +230,6 @@
     </div>
   </div>
 </div>
-
 <style>
   .settings-root {
     width:100%; height:100%;

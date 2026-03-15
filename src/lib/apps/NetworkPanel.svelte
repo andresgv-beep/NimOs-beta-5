@@ -201,8 +201,18 @@
     {#if loading}
       <div class="n-loading"><div class="spinner"></div></div>
 
-    <!-- ══ INTERFACES ══ -->
-    {:else if activeSub === 'interfaces'}
+    <!-- ══ INTERFACES tab — sub: interfaces | dns ══ -->
+    {:else if activeTab === 'interfaces'}
+      <div class="sub-tabs">
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="sub-tab" class:active={activeSub === 'interfaces'} on:click={() => activeSub = 'interfaces'}>Network Interfaces</div>
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="sub-tab" class:active={activeSub === 'dns'} on:click={() => activeSub = 'dns'}>DNS</div>
+      </div>
+
+      {#if activeSub === 'interfaces'}
       <div class="section-label">Interfaces de red</div>
       {#if netIfaces.length === 0}
         <p class="empty-msg">No se detectaron interfaces</p>
@@ -231,8 +241,16 @@
         </div>
       {/if}
 
-    <!-- ══ DNS ══ -->
-    {:else if activeSub === 'dns'}
+    <!-- ══ DNS (inside interfaces tab) ══ -->
+    {:else if activeSub === 'dns' && activeTab === 'interfaces'}
+      <div class="sub-tabs">
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="sub-tab" class:active={activeSub === 'interfaces'} on:click={() => activeSub = 'interfaces'}>Network Interfaces</div>
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="sub-tab" class:active={activeSub === 'dns'} on:click={() => activeSub = 'dns'}>DNS</div>
+      </div>
       <div class="section-label">DNS y Hostname</div>
       <div class="field-group">
         <div class="field-row">
@@ -255,8 +273,25 @@
         {/if}
       </div>
 
+    <!-- ══ SERVICES tab sub-tabs ══ -->
+    {:else if activeTab === 'services'}
+      <div class="sub-tabs">
+        {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
+
     <!-- ══ SMB ══ -->
     {:else if activeSub === 'smb'}
+      <div class="sub-tabs">
+        {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
       <div class="service-header">
         <div class="section-label">SMB / CIFS</div>
         <div class="svc-status" style="color:{statusColor(smbData.running)}">
@@ -284,6 +319,13 @@
 
     <!-- ══ SSH ══ -->
     {:else if activeSub === 'ssh'}
+      <div class="sub-tabs">
+        {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
       <div class="service-header">
         <div class="section-label">SSH</div>
         <div class="svc-status" style="color:{statusColor(sshData.running)}">
@@ -299,6 +341,13 @@
 
     <!-- ══ FTP ══ -->
     {:else if activeSub === 'ftp'}
+      <div class="sub-tabs">
+        {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
       <div class="service-header">
         <div class="section-label">FTP / SFTP</div>
         <div class="svc-status" style="color:{statusColor(ftpData.running)}">
@@ -313,6 +362,13 @@
 
     <!-- ══ NFS ══ -->
     {:else if activeSub === 'nfs'}
+      <div class="sub-tabs">
+        {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
       <div class="service-header">
         <div class="section-label">NFS</div>
         <div class="svc-status" style="color:{statusColor(nfsData.running)}">
@@ -336,6 +392,13 @@
 
     <!-- ══ WEBDAV ══ -->
     {:else if activeSub === 'webdav'}
+      <div class="sub-tabs">
+        {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
       <div class="service-header">
         <div class="section-label">WebDAV</div>
         <div class="svc-status" style="color:{statusColor(webdavData.running)}">
@@ -352,6 +415,13 @@
 
     <!-- ══ PORTS ══ -->
     {:else if activeSub === 'ports'}
+      <div class="sub-tabs">
+        {#each [['ports','Port Exposure'],['ddns','DDNS'],['proxy','Reverse Proxy'],['certs','Certificates']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
       <div class="section-label">HTTPS Server</div>
 
       <div class="https-status-row">
@@ -417,6 +487,13 @@
 
     <!-- ══ DDNS ══ -->
     {:else if activeSub === 'ddns'}
+      <div class="sub-tabs">
+        {#each [['ports','Port Exposure'],['ddns','DDNS'],['proxy','Reverse Proxy'],['certs','Certificates']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
       <div class="section-label">Dynamic DNS</div>
 
       <!-- Active domains list -->
@@ -568,6 +645,13 @@
 
     <!-- ══ PROXY ══ -->
     {:else if activeSub === 'proxy'}
+      <div class="sub-tabs">
+        {#each [['ports','Port Exposure'],['ddns','DDNS'],['proxy','Reverse Proxy'],['certs','Certificates']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
       <div class="section-label">Reverse Proxy</div>
       {#if !proxyData.rules?.length}
         <p class="empty-msg">Sin reglas configuradas</p>
@@ -585,6 +669,14 @@
 
     <!-- ══ CERTS ══ -->
     {:else if activeSub === 'certs'}
+      <div class="sub-tabs">
+        {#each [['ports','Port Exposure'],['ddns','DDNS'],['proxy','Reverse Proxy'],['certs','Certificates']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
+
 
       <!-- Request form — only when no valid cert -->
       {#if !certData.ssl?.valid}
@@ -662,6 +754,13 @@
 
     <!-- ══ FIREWALL ══ -->
     {:else if activeSub === 'firewall'}
+      <div class="sub-tabs">
+        {#each [['firewall','Firewall'],['fail2ban','Fail2ban']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
       <div class="section-label">Firewall</div>
       {#if firewallData.ports?.length}
         <div class="section-label" style="margin-top:4px;margin-bottom:8px">Puertos abiertos</div>
@@ -689,6 +788,13 @@
 
     <!-- ══ FAIL2BAN ══ -->
     {:else if activeSub === 'fail2ban'}
+      <div class="sub-tabs">
+        {#each [['firewall','Firewall'],['fail2ban','Fail2ban']] as [id, label]}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+        {/each}
+      </div>
       <div class="section-label">Fail2ban</div>
       <p class="empty-msg">Protección contra fuerza bruta — coming soon</p>
     {/if}
@@ -963,4 +1069,22 @@
   }
   .cert-label { font-size:10px; color:var(--text-3); flex-shrink:0; min-width:120px; }
   .cert-value { font-size:11px; color:var(--text-1); font-family:'DM Mono',monospace; word-break:break-all; }
+
+  /* ── SUB-TABS ── */
+  .sub-tabs {
+    display:flex; gap:4px; margin-bottom:16px;
+    padding-bottom:12px; border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+  .sub-tab {
+    padding:5px 12px; border-radius:6px; cursor:pointer;
+    font-size:11px; font-weight:500; color:var(--text-3);
+    border:1px solid transparent; transition:all .15s;
+  }
+  .sub-tab:hover { color:var(--text-2); background:rgba(128,128,128,0.06); }
+  .sub-tab.active {
+    background:var(--active-bg); color:var(--text-1);
+    border-color:var(--border-hi);
+  }
+
 </style>
