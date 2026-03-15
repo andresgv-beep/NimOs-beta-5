@@ -661,12 +661,48 @@ func dockerInstall(w http.ResponseWriter, r *http.Request) {
 	if dockerAvailable {
 		dockerDataPath := filepath.Join(dockerPath, "data")
 		os.MkdirAll(dockerDataPath, 0755)
+		os.MkdirAll(filepath.Join(dockerDataPath, "containers"), 0755)
 		os.MkdirAll("/etc/docker", 0755)
 		daemonConf := map[string]interface{}{"data-root": dockerDataPath}
 		data, _ := json.MarshalIndent(daemonConf, "", "  ")
 		os.WriteFile("/etc/docker/daemon.json", data, 0644)
 		run("systemctl enable docker 2>/dev/null")
 		run("systemctl restart docker 2>/dev/null")
+
+		// Set permissions on docker directories so admin users can browse via FileManager
+		run(fmt.Sprintf(`chmod 755 "%s"`, dockerPath))
+		run(fmt.Sprintf(`chmod 755 "%s"`, filepath.Join(dockerPath, "containers")))
+		run(fmt.Sprintf(`chmod 755 "%s"`, filepath.Join(dockerPath, "stacks")))
+		run(fmt.Sprintf(`chmod 755 "%s"`, filepath.Join(dockerPath, "volumes")))
+		// data/ stays restrictive — it's Docker internal storage
+
+		// Create "docker" share automatically so FileManager shows it
+		dockerSharePath := filepath.Join(dockerPath, "containers")
+		existingShare, _ := dbSharesGet("docker-apps")
+		if existingShare == nil {
+			// Get pool name from config
+			poolName := ""
+			if targetPool != nil {
+				poolName, _ = targetPool["name"].(string)
+			}
+			// Create the share in DB
+			dbSharesCreate("docker-apps", "Docker Apps", "Application data for Docker containers", dockerSharePath, poolName, poolName, "system")
+			// Set admin rw permission
+			if users, err := dbUsersList(); err == nil {
+				for _, u := range users {
+					role, _ := u["role"].(string)
+					username, _ := u["username"].(string)
+					if role == "admin" && username != "" {
+						dbShareSetPermission("docker-apps", username, "rw")
+						// Add user to group for filesystem access
+						run(fmt.Sprintf("usermod -aG docker %s 2>/dev/null || true", username))
+					}
+				}
+			}
+			// Set filesystem permissions on containers dir
+			run(fmt.Sprintf(`chmod -R 775 "%s"`, dockerSharePath))
+			log.Println("Docker share 'docker-apps' created at", dockerSharePath)
+		}
 	}
 
 	conf := getDockerConfigGo()
@@ -857,6 +893,12 @@ func dockerStackDeploy(w http.ResponseWriter, r *http.Request) {
 	stackPath := filepath.Join(dockerPath, "stacks", id)
 	os.MkdirAll(stackPath, 0755)
 
+	// Create container config directory (used by CONFIG_PATH in compose)
+	containerPath := filepath.Join(dockerPath, "containers", id)
+	os.MkdirAll(containerPath, 0775)
+	// Set permissions so admin can read/write configs
+	run(fmt.Sprintf(`chmod -R 775 "%s"`, containerPath))
+
 	// Write compose file
 	composePath := filepath.Join(stackPath, "docker-compose.yml")
 	os.WriteFile(composePath, []byte(compose), 0644)
@@ -877,6 +919,10 @@ func dockerStackDeploy(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, 500, fmt.Sprintf("Failed to deploy stack: %s", string(out)))
 		return
 	}
+
+	// Fix permissions on container config dir after deploy
+	run(fmt.Sprintf(`chmod -R 775 "%s" 2>/dev/null || true`, containerPath))
+	run(fmt.Sprintf(`chmod -R 775 "%s" 2>/dev/null || true`, stackPath))
 
 	// Register
 	apps := getInstalledApps()
