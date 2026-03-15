@@ -240,12 +240,6 @@
 
       <!-- Content per activeSub -->
       {#if activeSub === 'interfaces'}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="sub-tab" class:active={activeSub === 'dns'} on:click={() => activeSub = 'dns'}>DNS</div>
-      </div>
-
-      {#if activeSub === 'interfaces'}
       <div class="section-label">Interfaces de red</div>
       {#if netIfaces.length === 0}
         <p class="empty-msg">No se detectaron interfaces</p>
@@ -823,8 +817,9 @@
       </div>
       <div class="section-label">Fail2ban</div>
       <p class="empty-msg">Protección contra fuerza bruta — coming soon</p>
-      {/if}
     {/if}
+</div>
+
 <style>
   .net-root { width:100%; height:100%; display:flex; overflow:hidden; }
   .net-content { flex:1; overflow-y:auto; padding:18px 20px; }
