@@ -1,5 +1,5 @@
 <script>
-  import { pinnedApps } from '$lib/stores/theme.js';
+  import { prefs, pinnedApps } from '$lib/stores/theme.js';
   import { windowList, openWindow, focusWindow, restoreWindow, minimizeWindow } from '$lib/stores/windows.js';
   import { logout } from '$lib/stores/auth.js';
   import { APP_META } from '$lib/apps.js';
@@ -24,131 +24,310 @@
   }
 
   let time = '';
+  let date = '';
   function updateClock() {
     const now = new Date();
-    time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const h = String(now.getHours()).padStart(2,'0');
+    const m = String(now.getMinutes()).padStart(2,'0');
+    time = `${h}:${m}`;
+    date = now.toLocaleDateString('es-ES', { weekday:'short', day:'numeric', month:'short' });
   }
   updateClock();
   setInterval(updateClock, 10000);
+
+  $: mode     = $prefs.taskbarMode     || 'classic';
+  $: position = $prefs.taskbarPosition || 'bottom';
+  $: size     = $prefs.taskbarSize     || 'medium';
+  $: isDock   = mode === 'dock';
+
+  // Open windows not pinned
+  $: openUnpinned = $windowList.filter(w => !$pinnedApps.includes(w.appId));
 </script>
 
 <Launcher bind:visible={showLauncher} />
 
-<div class="taskbar">
-  <!-- Launcher button -->
-  <button class="tb-launcher" on:click={() => showLauncher = !showLauncher} title="Apps">
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.9"/>
-      <rect x="11" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.6"/>
-      <rect x="1" y="11" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.6"/>
-      <rect x="11" y="11" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.4"/>
-    </svg>
-  </button>
+<div
+  class="taskbar"
+  class:dock={isDock}
+  class:classic={!isDock}
+  data-position={position}
+  data-size={size}
+>
+  {#if !isDock}
+    <!-- ── CLASSIC MODE ── -->
 
-  <div class="sep"></div>
-
-  <!-- Pinned apps -->
-  <div class="pinned">
-    {#each $pinnedApps as appId}
-      {@const meta = APP_META[appId]}
-      {#if meta}
-        <button
-          class="tb-icon"
-          class:active={$windowList.some(w => w.appId === appId)}
-          title={meta.name}
-          on:click={() => handleAppClick(appId)}
-        >
-          <span class="tb-emoji">{meta.icon}</span>
-        </button>
-      {/if}
-    {/each}
-  </div>
-
-  <div class="sep"></div>
-
-  <!-- Open windows not pinned -->
-  <div class="open-windows">
-    {#each $windowList.filter(w => !$pinnedApps.includes(w.appId)) as win}
-      {@const meta = APP_META[win.appId]}
-      <button
-        class="tb-icon small"
-        class:minimized={win.minimized}
-        title={meta?.name || win.appId}
-        on:click={() => toggleMinimize(win)}
-      >
-        <span class="tb-emoji">{meta?.icon || '📦'}</span>
-      </button>
-    {/each}
-  </div>
-
-  <!-- Right side -->
-  <div class="right">
-    <span class="clock">{time}</span>
-    <button class="tb-icon" title="Logout" on:click={logout}>
-      <span class="tb-emoji" style="font-size:14px">⏻</span>
+    <!-- Launcher -->
+    <button class="tb-launcher" on:click={() => showLauncher = !showLauncher} title="Apps"
+      class:active={showLauncher}>
+      <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+        <rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.9"/>
+        <rect x="11" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.65"/>
+        <rect x="1" y="11" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.65"/>
+        <rect x="11" y="11" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.4"/>
+      </svg>
     </button>
-  </div>
+
+    <div class="sep"></div>
+
+    <!-- Pinned apps -->
+    <div class="app-row">
+      {#each $pinnedApps as appId}
+        {@const meta = APP_META[appId]}
+        {#if meta}
+          {@const isOpen = $windowList.some(w => w.appId === appId)}
+          {@const isMin  = $windowList.find(w => w.appId === appId)?.minimized}
+          <button class="tb-btn" class:open={isOpen} class:minimized={isMin}
+            title={meta.name} on:click={() => handleAppClick(appId)}>
+            <span class="tb-emoji">{meta.icon}</span>
+            {#if isOpen}<div class="tb-dot"></div>{/if}
+          </button>
+        {/if}
+      {/each}
+    </div>
+
+    {#if openUnpinned.length > 0}
+      <div class="sep"></div>
+      <div class="app-row">
+        {#each openUnpinned as win}
+          {@const meta = APP_META[win.appId]}
+          <button class="tb-btn open" class:minimized={win.minimized}
+            title={meta?.name || win.appId} on:click={() => toggleMinimize(win)}>
+            <span class="tb-emoji">{meta?.icon || '📦'}</span>
+            <div class="tb-dot"></div>
+          </button>
+        {/each}
+      </div>
+    {/if}
+
+    <!-- Right -->
+    <div class="right">
+      <div class="clock-wrap">
+        <span class="clock">{time}</span>
+        <span class="clock-date">{date}</span>
+      </div>
+      <div class="sep"></div>
+      <button class="tb-btn" title="Cerrar sesión" on:click={logout}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </button>
+    </div>
+
+  {:else}
+    <!-- ── DOCK MODE ── -->
+    <div class="dock-inner">
+      <!-- Launcher -->
+      <button class="dock-btn launcher-btn" on:click={() => showLauncher = !showLauncher}
+        title="Apps" class:active={showLauncher}>
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.9"/>
+          <rect x="11" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.65"/>
+          <rect x="1" y="11" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.65"/>
+          <rect x="11" y="11" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.4"/>
+        </svg>
+      </button>
+
+      <div class="dock-sep"></div>
+
+      <!-- Pinned -->
+      {#each $pinnedApps as appId}
+        {@const meta = APP_META[appId]}
+        {#if meta}
+          {@const isOpen = $windowList.some(w => w.appId === appId)}
+          {@const isMin  = $windowList.find(w => w.appId === appId)?.minimized}
+          <button class="dock-btn" class:open={isOpen} class:minimized={isMin}
+            title={meta.name} on:click={() => handleAppClick(appId)}>
+            <span class="dock-emoji">{meta.icon}</span>
+            {#if isOpen}<div class="dock-dot"></div>{/if}
+          </button>
+        {/if}
+      {/each}
+
+      {#if openUnpinned.length > 0}
+        <div class="dock-sep"></div>
+        {#each openUnpinned as win}
+          {@const meta = APP_META[win.appId]}
+          <button class="dock-btn open" class:minimized={win.minimized}
+            title={meta?.name || win.appId} on:click={() => toggleMinimize(win)}>
+            <span class="dock-emoji">{meta?.icon || '📦'}</span>
+            <div class="dock-dot"></div>
+          </button>
+        {/each}
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
-  .taskbar {
-    position: fixed; bottom: 0; left: 0; right: 0;
+  /* ── CLASSIC ── */
+  .taskbar.classic {
+    position: fixed; left: 0; right: 0;
     height: var(--taskbar-height, 48px);
-    background: rgba(0,0,0,0.65);
-    backdrop-filter: blur(20px) saturate(1.5);
-    -webkit-backdrop-filter: blur(20px) saturate(1.5);
-    border-top: 1px solid rgba(255,255,255,0.08);
     display: flex; align-items: center;
-    padding: 0 12px; gap: 4px;
+    padding: 0 10px; gap: 2px;
     z-index: 9000;
+    /* Tokens instead of hardcoded */
+    background: var(--taskbar-bg, rgba(17,16,40,0.80));
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border-color: var(--taskbar-border, rgba(255,255,255,0.07));
+  }
+  .taskbar.classic[data-position="bottom"] { bottom: 0; border-top: 1px solid var(--border); }
+  .taskbar.classic[data-position="top"]    { top: 0;    border-bottom: 1px solid var(--border); }
+  .taskbar.classic[data-position="left"]   {
+    left: 0; top: 0; bottom: 0; right: auto;
+    width: var(--taskbar-height, 48px); height: auto;
+    flex-direction: column; padding: 10px 0;
+    border-right: 1px solid var(--border);
+  }
+
+  /* Light theme taskbar */
+  :global([data-theme="light"]) .taskbar.classic {
+    background: rgba(225,225,232,0.88);
+    border-color: rgba(0,0,0,0.10);
+  }
+  :global([data-theme="dark"]) .taskbar.classic {
+    background: rgba(24,24,24,0.82);
+    border-color: rgba(255,255,255,0.07);
   }
 
   .tb-launcher {
-    width: 36px; height: 36px; border-radius: 8px;
-    border: none; background: none;
-    color: rgba(255,255,255,0.6);
+    width: 34px; height: 34px; border-radius: 8px;
+    border: none; background: transparent;
+    color: var(--text-2);
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: all 0.15s;
+    cursor: pointer; transition: all .15s; flex-shrink: 0;
   }
-  .tb-launcher:hover { background: rgba(255,255,255,0.1); color: white; }
-
-  .pinned, .open-windows {
-    display: flex; align-items: center; gap: 2px;
+  .tb-launcher:hover, .tb-launcher.active {
+    background: var(--active-bg); color: var(--text-1);
   }
 
   .sep {
-    width: 1px; height: 24px;
-    background: rgba(255,255,255,0.1);
-    margin: 0 6px;
+    width: 1px; height: 22px;
+    background: var(--border);
+    margin: 0 6px; flex-shrink: 0;
+  }
+  .taskbar.classic[data-position="left"] .sep {
+    width: 22px; height: 1px; margin: 4px 0;
   }
 
-  .tb-icon {
-    width: 40px; height: 40px;
-    border-radius: 10px; border: none;
-    background: transparent;
+  .app-row { display: flex; align-items: center; gap: 1px; }
+  .taskbar.classic[data-position="left"] .app-row { flex-direction: column; }
+
+  .tb-btn {
+    width: 38px; height: 38px; border-radius: 9px;
+    border: none; background: transparent;
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: all 0.15s;
-    position: relative;
+    cursor: pointer; transition: all .15s;
+    position: relative; flex-shrink: 0;
+    flex-direction: column; gap: 2px;
+    color: var(--text-1);
   }
-  .tb-icon:hover { background: rgba(255,255,255,0.1); }
-  .tb-icon.active::after {
-    content: ''; position: absolute; bottom: 2px;
-    width: 16px; height: 3px; border-radius: 2px;
-    background: var(--accent, #E95420);
-  }
-  .tb-icon.small { width: 34px; height: 34px; }
-  .tb-icon.minimized { opacity: 0.4; }
+  .tb-btn:hover { background: var(--ibtn-bg); }
+  .tb-btn.open  { background: var(--ibtn-bg); }
+  .tb-btn.minimized { opacity: 0.45; }
 
-  .tb-emoji { font-size: 20px; }
+  .tb-emoji { font-size: 19px; line-height: 1; }
+
+  .tb-dot {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--accent);
+    position: absolute; bottom: 3px;
+  }
 
   .right {
     margin-left: auto;
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; gap: 2px;
+  }
+  .taskbar.classic[data-position="left"] .right {
+    margin-left: 0; margin-top: auto; flex-direction: column;
   }
 
-  .clock {
-    font-size: 12px; color: rgba(255,255,255,0.7);
-    font-family: 'DM Mono', monospace;
-    font-weight: 500;
+  .clock-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 0 8px; gap: 1px;
   }
+  .clock {
+    font-size: 12px; font-weight: 600;
+    font-family: 'DM Mono', monospace;
+    color: var(--text-1);
+    line-height: 1;
+  }
+  .clock-date {
+    font-size: 9px; color: var(--text-3);
+    font-family: 'DM Mono', monospace;
+    text-transform: capitalize;
+  }
+
+  /* ── DOCK ── */
+  .taskbar.dock {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: 10px;
+    height: auto; width: auto;
+    background: transparent;
+    border: none;
+    z-index: 9000;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .taskbar.dock[data-position="top"] { bottom: auto; top: 10px; }
+
+  .dock-inner {
+    display: flex; align-items: center; gap: 4px;
+    padding: 6px 10px;
+    border-radius: 18px;
+    background: var(--taskbar-bg, rgba(17,16,40,0.80));
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2);
+  }
+
+  :global([data-theme="light"]) .dock-inner {
+    background: rgba(220,220,228,0.88);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.08);
+  }
+  :global([data-theme="dark"]) .dock-inner {
+    background: rgba(24,24,24,0.85);
+  }
+
+  .dock-btn {
+    width: 42px; height: 42px; border-radius: 12px;
+    border: none; background: transparent;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; transition: all .18s cubic-bezier(0.34,1.56,0.64,1);
+    position: relative; gap: 2px; flex-shrink: 0;
+  }
+  .dock-btn:hover { transform: translateY(-4px) scale(1.12); background: var(--ibtn-bg); }
+  .dock-btn.open  { background: var(--ibtn-bg); }
+  .dock-btn.minimized { opacity: 0.4; }
+  .dock-btn.active { background: var(--active-bg); }
+
+  .launcher-btn:hover { background: var(--active-bg) !important; }
+
+  .dock-emoji { font-size: 22px; line-height: 1; }
+
+  .dock-dot {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--accent);
+    position: absolute; bottom: 2px;
+  }
+
+  .dock-sep {
+    width: 1px; height: 28px;
+    background: var(--border);
+    margin: 0 4px; flex-shrink: 0;
+  }
+
+  /* Size variants */
+  .taskbar[data-size="small"]  .tb-btn,
+  .taskbar[data-size="small"]  .tb-launcher { width: 32px; height: 32px; }
+  .taskbar[data-size="small"]  .tb-emoji { font-size: 16px; }
+  .taskbar[data-size="large"]  .tb-btn,
+  .taskbar[data-size="large"]  .tb-launcher { width: 44px; height: 44px; }
+  .taskbar[data-size="large"]  .tb-emoji { font-size: 22px; }
+
+  .taskbar[data-size="small"]  .dock-btn { width: 36px; height: 36px; }
+  .taskbar[data-size="small"]  .dock-emoji { font-size: 18px; }
+  .taskbar[data-size="large"]  .dock-btn { width: 50px; height: 50px; }
+  .taskbar[data-size="large"]  .dock-emoji { font-size: 26px; }
 </style>
