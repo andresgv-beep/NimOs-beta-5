@@ -15,7 +15,7 @@ RestartSec=3
 # Security hardening
 PrivateNetwork=false
 ProtectHome=false
-ProtectSystem=strict
+ProtectSystem=false
 ReadWritePaths=/run /nimbus /var/lib/nimbusos /etc /home /tmp /var/tmp /var/log /var/cache /opt/nimbusos /usr/local/bin /usr/bin /usr/sbin /usr/lib /usr/share /var/lib/docker /var/lib/containerd /var/run/docker.sock
 NoNewPrivileges=false
 
