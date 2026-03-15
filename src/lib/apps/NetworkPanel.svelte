@@ -202,7 +202,8 @@
       <div class="n-loading"><div class="spinner"></div></div>
 
     {:else}
-      <!-- Sub-tabs for current activeTab -->
+
+      <!-- Sub-tabs row -->
       {#if activeTab === 'interfaces'}
         <div class="sub-tabs">
           <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -238,365 +239,250 @@
         </div>
       {/if}
 
-      <!-- Content per activeSub -->
-      {#if activeSub === 'interfaces'}
-      <div class="section-label">Interfaces de red</div>
-      {#if netIfaces.length === 0}
-        <p class="empty-msg">No se detectaron interfaces</p>
-      {:else}
-        <div class="iface-list">
-          {#each netIfaces as iface}
-            <div class="iface-card">
-              <div class="iface-header">
-                <div class="iface-led" style="background:{iface.up ? 'var(--green)' : 'var(--text-3)'}; box-shadow:{iface.up ? '0 0 5px rgba(74,222,128,0.6)' : 'none'}"></div>
-                <div class="iface-name">{iface.name || iface.interface}</div>
-                <div class="iface-type">{iface.type || (iface.name?.startsWith('w') ? 'WiFi' : 'Ethernet')}</div>
-                <div class="iface-status" style="color:{statusColor(iface.up)}">{iface.up ? 'UP' : 'DOWN'}</div>
-              </div>
-              <div class="iface-body">
-                <div class="iface-row"><span>IP</span><span>{iface.ip || iface.address || '—'}</span></div>
-                {#if iface.ip6 || iface.ipv6}
-                  <div class="iface-row"><span>IPv6</span><span>{iface.ip6 || iface.ipv6}</span></div>
-                {/if}
-                <div class="iface-row"><span>MAC</span><span>{iface.mac || iface.hwaddr || '—'}</span></div>
-                {#if iface.speed}
-                  <div class="iface-row"><span>Velocidad</span><span>{iface.speed}</span></div>
-                {/if}
-              </div>
-            </div>
-          {/each}
-        </div>
-      {/if}
-      {/if}
-
-    <!-- ══ DNS (inside interfaces tab) ══ -->
-      {:else if activeSub === 'dns'}
-      </div>
+      <!-- ══ Content ══ -->
 
       {#if activeSub === 'interfaces'}
-      <div class="section-label">Interfaces de red</div>
-      {#if netIfaces.length === 0}
-        <p class="empty-msg">No se detectaron interfaces</p>
-      {:else}
-        <div class="iface-list">
-          {#each netIfaces as iface}
-            <div class="iface-card">
-              <div class="iface-header">
-                <div class="iface-led" style="background:{iface.up ? 'var(--green)' : 'var(--text-3)'}; box-shadow:{iface.up ? '0 0 5px rgba(74,222,128,0.6)' : 'none'}"></div>
-                <div class="iface-name">{iface.name || iface.interface}</div>
-                <div class="iface-type">{iface.type || (iface.name?.startsWith('w') ? 'WiFi' : 'Ethernet')}</div>
-                <div class="iface-status" style="color:{statusColor(iface.up)}">{iface.up ? 'UP' : 'DOWN'}</div>
-              </div>
-              <div class="iface-body">
-                <div class="iface-row"><span>IP</span><span>{iface.ip || iface.address || '—'}</span></div>
-                {#if iface.ip6 || iface.ipv6}
-                  <div class="iface-row"><span>IPv6</span><span>{iface.ip6 || iface.ipv6}</span></div>
-                {/if}
-                <div class="iface-row"><span>MAC</span><span>{iface.mac || iface.hwaddr || '—'}</span></div>
-                {#if iface.speed}
-                  <div class="iface-row"><span>Velocidad</span><span>{iface.speed}</span></div>
-                {/if}
-              </div>
-            </div>
-          {/each}
-        </div>
-      {/if}
-      {/if}
-
-    <!-- ══ DNS (inside interfaces tab) ══ -->
-      {:else if activeSub === 'smb'}
-      <div class="sub-tabs">
-        {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
-      </div>
-      <div class="service-header">
-        <div class="section-label">SMB / CIFS</div>
-        <div class="svc-status" style="color:{statusColor(smbData.running)}">
-          <div class="svc-dot" style="background:{statusColor(smbData.running)}"></div>
-          {statusLabel(smbData.running)}
-        </div>
-      </div>
-      <div class="field-group">
-        {#if smbData.workgroup}
-          <div class="field-row"><span class="field-label">Workgroup</span><span class="field-value">{smbData.workgroup}</span></div>
-        {/if}
-        {#if smbData.serverString}
-          <div class="field-row"><span class="field-label">Server string</span><span class="field-value">{smbData.serverString}</span></div>
-        {/if}
-        {#if smbData.shares?.length}
-          <div class="section-label" style="margin-top:14px">Shares activos</div>
-          {#each smbData.shares as share}
-            <div class="share-row">
-              <span class="share-name">{share.name}</span>
-              <span class="share-path">{share.path}</span>
-            </div>
-          {/each}
-        {/if}
-      </div>
-
-    <!-- ══ SSH ══ -->
-      {:else if activeSub === 'ssh'}
-      <div class="sub-tabs">
-        {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
-      </div>
-      <div class="service-header">
-        <div class="section-label">SSH</div>
-        <div class="svc-status" style="color:{statusColor(sshData.running)}">
-          <div class="svc-dot" style="background:{statusColor(sshData.running)}"></div>
-          {statusLabel(sshData.running)}
-        </div>
-      </div>
-      <div class="field-group">
-        <div class="field-row"><span class="field-label">Puerto</span><span class="field-value">{sshData.port || 22}</span></div>
-        <div class="field-row"><span class="field-label">Auth por clave</span><span class="field-value">{sshData.keyAuth ? 'Sí' : 'No'}</span></div>
-        <div class="field-row"><span class="field-label">Root login</span><span class="field-value">{sshData.rootLogin ? 'Permitido' : 'Denegado'}</span></div>
-      </div>
-
-    <!-- ══ FTP ══ -->
-      {:else if activeSub === 'ftp'}
-      <div class="sub-tabs">
-        {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
-      </div>
-      <div class="service-header">
-        <div class="section-label">FTP / SFTP</div>
-        <div class="svc-status" style="color:{statusColor(ftpData.running)}">
-          <div class="svc-dot" style="background:{statusColor(ftpData.running)}"></div>
-          {statusLabel(ftpData.running)}
-        </div>
-      </div>
-      <div class="field-group">
-        <div class="field-row"><span class="field-label">Puerto FTP</span><span class="field-value">{ftpData.port || 21}</span></div>
-        <div class="field-row"><span class="field-label">Modo pasivo</span><span class="field-value">{ftpData.passive ? 'Sí' : 'No'}</span></div>
-      </div>
-
-    <!-- ══ NFS ══ -->
-      {:else if activeSub === 'nfs'}
-      <div class="sub-tabs">
-        {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
-      </div>
-      <div class="service-header">
-        <div class="section-label">NFS</div>
-        <div class="svc-status" style="color:{statusColor(nfsData.running)}">
-          <div class="svc-dot" style="background:{statusColor(nfsData.running)}"></div>
-          {statusLabel(nfsData.running)}
-        </div>
-      </div>
-      <div class="field-group">
-        {#if nfsData.exports?.length}
-          <div class="section-label" style="margin-top:4px">Exports</div>
-          {#each nfsData.exports as exp}
-            <div class="share-row">
-              <span class="share-name">{exp.path}</span>
-              <span class="share-path">{exp.clients || '*'}</span>
-            </div>
-          {/each}
+        <div class="section-label">Interfaces de red</div>
+        {#if netIfaces.length === 0}
+          <p class="empty-msg">No se detectaron interfaces</p>
         {:else}
-          <p class="empty-msg">Sin exports configurados</p>
-        {/if}
-      </div>
-
-    <!-- ══ WEBDAV ══ -->
-      {:else if activeSub === 'webdav'}
-      <div class="sub-tabs">
-        {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
-      </div>
-      <div class="service-header">
-        <div class="section-label">WebDAV</div>
-        <div class="svc-status" style="color:{statusColor(webdavData.running)}">
-          <div class="svc-dot" style="background:{statusColor(webdavData.running)}"></div>
-          {statusLabel(webdavData.running)}
-        </div>
-      </div>
-      <div class="field-group">
-        <div class="field-row"><span class="field-label">Puerto</span><span class="field-value">{webdavData.port || 5005}</span></div>
-        {#if webdavData.path}
-          <div class="field-row"><span class="field-label">Path</span><span class="field-value">{webdavData.path}</span></div>
-        {/if}
-      </div>
-
-    <!-- ══ PORTS ══ -->
-      {:else if activeSub === 'ports'}
-      <div class="sub-tabs">
-        {#each [['ports','Port Exposure'],['ddns','DDNS'],['proxy','Reverse Proxy'],['certs','Certificates']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
-      </div>
-      <div class="section-label">HTTPS Server</div>
-
-      <div class="https-status-row">
-        <div>
-          <div class="https-title">Servir NimOS por HTTPS</div>
-          <div class="https-subtitle">Puerto {httpsPort}</div>
-        </div>
-        <div class="https-state" style="color:{httpsEnabled ? 'var(--green)' : 'var(--text-3)'}">
-          <div class="ddns-dot" style="background:{httpsEnabled ? 'var(--green)' : 'var(--text-3)'}"></div>
-          {httpsEnabled ? 'Running' : 'Stopped'}
-        </div>
-      </div>
-
-      <!-- Port config -->
-      <div class="form-field" style="max-width:160px;margin-top:14px">
-        <label class="form-label">HTTPS Port</label>
-        <input class="form-input" type="number" bind:value={httpsPort} placeholder="5009" />
-        <span style="font-size:9px;color:var(--text-3);margin-top:2px">Default: 5009</span>
-      </div>
-
-      <!-- Toggle -->
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="https-toggle" on:click={() => toggleHttps(!httpsEnabled)} style="margin-top:14px">
-        <div class="toggle-track" class:on={httpsEnabled}>
-          <div class="toggle-thumb"></div>
-        </div>
-        <span class="toggle-label">
-          {httpsEnabled ? `HTTPS activo en puerto ${httpsPort}` : `Activar HTTPS en puerto ${httpsPort}`}
-        </span>
-      </div>
-
-      {#if httpsEnabled && certDomain}
-        <div class="https-url" style="margin-top:14px">
-          🔒 https://{certDomain}:{httpsPort}
-        </div>
-
-        <div style="font-size:10px;color:var(--text-3);margin-top:8px">
-          Asegúrate de redirigir el puerto <strong style="color:var(--text-1)">{httpsPort}</strong> en tu router.
-        </div>
-      {/if}
-
-      <!-- Connection Details -->
-      <div class="section-label" style="margin-top:24px">Detalles de conexión</div>
-      <div class="cert-details">
-        <div class="cert-row">
-          <span class="cert-label">Local</span>
-          <span class="cert-value">http://{localIp || '—'}:5000</span>
-        </div>
-        {#if certDomain}
-          <div class="cert-row">
-            <span class="cert-label">Remote (HTTP)</span>
-            <span class="cert-value">http://{certDomain}:5000</span>
-          </div>
-          {#if sslValid}
-            <div class="cert-row">
-              <span class="cert-label">Remote (HTTPS)</span>
-              <span class="cert-value" style="color:var(--green)">https://{certDomain}:{httpsPort}</span>
-            </div>
-          {/if}
-        {/if}
-      </div>
-
-    <!-- ══ DDNS ══ -->
-      {:else if activeSub === 'ddns'}
-      <div class="sub-tabs">
-        {#each [['ports','Port Exposure'],['ddns','DDNS'],['proxy','Reverse Proxy'],['certs','Certificates']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
-      </div>
-      <div class="section-label">Dynamic DNS</div>
-
-      <!-- Active domains list -->
-      {#if ddnsData.config?.enabled && ddnsData.config?.domain && !ddnsEditing}
-        <!-- Info cards first -->
-        <div class="ddns-info-cards">
-          <div class="ddns-info-card">
-            <span class="ddns-info-label">External IP</span>
-            <span class="ddns-info-value">{ddnsData.externalIp || '—'}</span>
-          </div>
-          <div class="ddns-info-card">
-            <span class="ddns-info-label">Provider</span>
-            <span class="ddns-info-value">{ddnsData.config.provider || '—'}</span>
-          </div>
-          <div class="ddns-info-card">
-            <span class="ddns-info-label">Last Update</span>
-            <span class="ddns-info-value small">{ddnsData.lastLog || '—'}</span>
-          </div>
-        </div>
-
-        <!-- Domain row -->
-        <div class="ddns-active">
-          <div class="ddns-domain-row">
-            <span class="ddns-domain-name">{ddnsData.config.domain}</span>
-            <span class="ddns-domain-provider">{ddnsData.config.provider}</span>
-
-            <div class="ddns-domain-right">
-              <!-- Auto update toggle -->
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <div class="ddns-auto-toggle" on:click={toggleAutoUpdate} title="Automatic DDNS updates">
-                <div class="toggle-track mini" class:on={ddnsData.config?.autoUpdate !== false}>
-                  <div class="toggle-thumb"></div>
+          <div class="iface-list">
+            {#each netIfaces as iface}
+              <div class="iface-card">
+                <div class="iface-header">
+                  <div class="iface-led" style="background:{iface.up ? 'var(--green)' : 'var(--text-3)'}; box-shadow:{iface.up ? '0 0 5px rgba(74,222,128,0.6)' : 'none'}"></div>
+                  <div class="iface-name">{iface.name || iface.interface}</div>
+                  <div class="iface-type">{iface.type || (iface.name?.startsWith('w') ? 'WiFi' : 'Ethernet')}</div>
+                  <div class="iface-status" style="color:{statusColor(iface.up)}">{iface.up ? 'UP' : 'DOWN'}</div>
                 </div>
-                <span class="ddns-auto-label">Auto</span>
+                <div class="iface-body">
+                  <div class="iface-row"><span>IP</span><span>{iface.ip || iface.address || '—'}</span></div>
+                  {#if iface.ip6 || iface.ipv6}
+                    <div class="iface-row"><span>IPv6</span><span>{iface.ip6 || iface.ipv6}</span></div>
+                  {/if}
+                  <div class="iface-row"><span>MAC</span><span>{iface.mac || iface.hwaddr || '—'}</span></div>
+                  {#if iface.speed}
+                    <div class="iface-row"><span>Velocidad</span><span>{iface.speed}</span></div>
+                  {/if}
+                </div>
               </div>
-
-              <!-- Refresh -->
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <span class="ddns-refresh" on:click={testDdns} title="Update now">
-                {#if ddnsTesting}
-                  <span class="cert-spinner"></span>
-                {:else}
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                    <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
-                    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-                  </svg>
-                {/if}
-              </span>
-
-              <div class="ddns-domain-state">
-                <div class="ddns-dot" style="background:var(--green)"></div>
-                Activo
-              </div>
-            </div>
+            {/each}
           </div>
-        </div>
-
-        {#if ddnsMsg}
-          <div class="ddns-msg" class:error={ddnsMsgError} style="margin-top:6px">{ddnsMsg}</div>
         {/if}
 
+      {:else if activeSub === 'dns'}
+        <div class="section-label">DNS y Hostname</div>
+        <div class="field-group">
+          <div class="field-row"><span class="field-label">Hostname</span><span class="field-value">{dnsData.hostname || '—'}</span></div>
+          <div class="field-row"><span class="field-label">DNS primario</span><span class="field-value">{dnsData.nameservers?.[0] || dnsData.dns1 || '—'}</span></div>
+          <div class="field-row"><span class="field-label">DNS secundario</span><span class="field-value">{dnsData.nameservers?.[1] || dnsData.dns2 || '—'}</span></div>
+          {#if dnsData.domain}
+            <div class="field-row"><span class="field-label">Dominio</span><span class="field-value">{dnsData.domain}</span></div>
+          {/if}
+        </div>
+
+      {:else if activeSub === 'smb'}
+        <div class="service-header">
+          <div class="section-label">SMB / CIFS</div>
+          <div class="svc-status" style="color:{statusColor(smbData.running)}">
+            <div class="svc-dot" style="background:{statusColor(smbData.running)}"></div>
+            {statusLabel(smbData.running)}
+          </div>
+        </div>
+        <div class="field-group">
+          {#if smbData.workgroup}
+            <div class="field-row"><span class="field-label">Workgroup</span><span class="field-value">{smbData.workgroup}</span></div>
+          {/if}
+          {#if smbData.serverString}
+            <div class="field-row"><span class="field-label">Server string</span><span class="field-value">{smbData.serverString}</span></div>
+          {/if}
+          {#if smbData.shares?.length}
+            <div class="section-label" style="margin-top:14px">Shares activos</div>
+            {#each smbData.shares as share}
+              <div class="share-row">
+                <span class="share-name">{share.name}</span>
+                <span class="share-path">{share.path}</span>
+              </div>
+            {/each}
+          {/if}
+        </div>
+
+      {:else if activeSub === 'ssh'}
+        <div class="service-header">
+          <div class="section-label">SSH</div>
+          <div class="svc-status" style="color:{statusColor(sshData.running)}">
+            <div class="svc-dot" style="background:{statusColor(sshData.running)}"></div>
+            {statusLabel(sshData.running)}
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-row"><span class="field-label">Puerto</span><span class="field-value">{sshData.port || 22}</span></div>
+          <div class="field-row"><span class="field-label">Auth por clave</span><span class="field-value">{sshData.keyAuth ? 'Sí' : 'No'}</span></div>
+          <div class="field-row"><span class="field-label">Root login</span><span class="field-value">{sshData.rootLogin ? 'Permitido' : 'Denegado'}</span></div>
+        </div>
+
+      {:else if activeSub === 'ftp'}
+        <div class="service-header">
+          <div class="section-label">FTP / SFTP</div>
+          <div class="svc-status" style="color:{statusColor(ftpData.running)}">
+            <div class="svc-dot" style="background:{statusColor(ftpData.running)}"></div>
+            {statusLabel(ftpData.running)}
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-row"><span class="field-label">Puerto FTP</span><span class="field-value">{ftpData.port || 21}</span></div>
+          <div class="field-row"><span class="field-label">Modo pasivo</span><span class="field-value">{ftpData.passive ? 'Sí' : 'No'}</span></div>
+        </div>
+
+      {:else if activeSub === 'nfs'}
+        <div class="service-header">
+          <div class="section-label">NFS</div>
+          <div class="svc-status" style="color:{statusColor(nfsData.running)}">
+            <div class="svc-dot" style="background:{statusColor(nfsData.running)}"></div>
+            {statusLabel(nfsData.running)}
+          </div>
+        </div>
+        <div class="field-group">
+          {#if nfsData.exports?.length}
+            {#each nfsData.exports as exp}
+              <div class="share-row">
+                <span class="share-name">{exp.path}</span>
+                <span class="share-path">{exp.clients || '*'}</span>
+              </div>
+            {/each}
+          {:else}
+            <p class="empty-msg">Sin exports configurados</p>
+          {/if}
+        </div>
+
+      {:else if activeSub === 'webdav'}
+        <div class="service-header">
+          <div class="section-label">WebDAV</div>
+          <div class="svc-status" style="color:{statusColor(webdavData.running)}">
+            <div class="svc-dot" style="background:{statusColor(webdavData.running)}"></div>
+            {statusLabel(webdavData.running)}
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-row"><span class="field-label">Puerto</span><span class="field-value">{webdavData.port || 5005}</span></div>
+          {#if webdavData.path}
+            <div class="field-row"><span class="field-label">Path</span><span class="field-value">{webdavData.path}</span></div>
+          {/if}
+        </div>
+
+      {:else if activeSub === 'ports'}
+        <div class="section-label">HTTPS Server</div>
+        <div class="https-status-row">
+          <div>
+            <div class="https-title">Servir NimOS por HTTPS</div>
+            <div class="https-subtitle">Puerto {httpsPort}</div>
+          </div>
+          <div class="https-state" style="color:{httpsEnabled ? 'var(--green)' : 'var(--text-3)'}">
+            <div class="ddns-dot" style="background:{httpsEnabled ? 'var(--green)' : 'var(--text-3)'}"></div>
+            {httpsEnabled ? 'Running' : 'Stopped'}
+          </div>
+        </div>
+        <div class="form-field" style="max-width:160px;margin-top:14px">
+          <label class="form-label">HTTPS Port</label>
+          <input class="form-input" type="number" bind:value={httpsPort} placeholder="5009" />
+          <span style="font-size:9px;color:var(--text-3);margin-top:2px">Default: 5009</span>
+        </div>
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="ddns-add-btn" on:click={() => { ddnsEditing = true; ddnsForm = { provider: '', domain: '', token: '', username: '', password: '' }; }}>
-          + Añadir dominio
-        </div>
-      {:else}
-        <!-- Config form -->
-        <div class="ddns-form">
-          <div class="form-field">
-            <label class="form-label">Proveedor</label>
-            <select class="form-select" bind:value={ddnsForm.provider}>
-              <option value="">Seleccionar...</option>
-              <option value="duckdns">DuckDNS</option>
-              <option value="noip">No-IP</option>
-              <option value="dynu">Dynu</option>
-              <option value="freedns">FreeDNS</option>
-            </select>
+        <div class="https-toggle" on:click={() => toggleHttps(!httpsEnabled)} style="margin-top:14px">
+          <div class="toggle-track" class:on={httpsEnabled}>
+            <div class="toggle-thumb"></div>
           </div>
+          <span class="toggle-label">
+            {httpsEnabled ? `HTTPS activo en puerto ${httpsPort}` : `Activar HTTPS en puerto ${httpsPort}`}
+          </span>
+        </div>
+        {#if httpsEnabled && certDomain}
+          <div class="https-url" style="margin-top:14px">🔒 https://{certDomain}:{httpsPort}</div>
+          <div style="font-size:10px;color:var(--text-3);margin-top:8px">
+            Asegúrate de redirigir el puerto <strong style="color:var(--text-1)">{httpsPort}</strong> en tu router.
+          </div>
+        {/if}
+        <div class="section-label" style="margin-top:24px">Detalles de conexión</div>
+        <div class="cert-details">
+          <div class="cert-row"><span class="cert-label">Local</span><span class="cert-value">http://{localIp || '—'}:5000</span></div>
+          {#if certDomain}
+            <div class="cert-row"><span class="cert-label">Remote (HTTP)</span><span class="cert-value">http://{certDomain}:5000</span></div>
+            {#if sslValid}
+              <div class="cert-row"><span class="cert-label">Remote (HTTPS)</span><span class="cert-value" style="color:var(--green)">https://{certDomain}:{httpsPort}</span></div>
+            {/if}
+          {/if}
+        </div>
 
-          {#if ddnsForm.provider}
+      {:else if activeSub === 'ddns'}
+        <div class="section-label">Dynamic DNS</div>
+        {#if ddnsData.config?.enabled && ddnsData.config?.domain && !ddnsEditing}
+          <div class="ddns-info-cards">
+            <div class="ddns-info-card">
+              <span class="ddns-info-label">External IP</span>
+              <span class="ddns-info-value">{ddnsData.externalIp || '—'}</span>
+            </div>
+            <div class="ddns-info-card">
+              <span class="ddns-info-label">Provider</span>
+              <span class="ddns-info-value">{ddnsData.config.provider || '—'}</span>
+            </div>
+            <div class="ddns-info-card">
+              <span class="ddns-info-label">Last Update</span>
+              <span class="ddns-info-value small">{ddnsData.lastLog || '—'}</span>
+            </div>
+          </div>
+          <div class="ddns-active">
+            <div class="ddns-domain-row">
+              <span class="ddns-domain-name">{ddnsData.config.domain}</span>
+              <span class="ddns-domain-provider">{ddnsData.config.provider}</span>
+              <div class="ddns-domain-right">
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div class="ddns-auto-toggle" on:click={toggleAutoUpdate}>
+                  <div class="toggle-track mini" class:on={ddnsData.config?.autoUpdate !== false}>
+                    <div class="toggle-thumb"></div>
+                  </div>
+                  <span class="ddns-auto-label">Auto</span>
+                </div>
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <span class="ddns-refresh" on:click={testDdns}>
+                  {#if ddnsTesting}
+                    <span class="cert-spinner"></span>
+                  {:else}
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                      <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
+                      <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+                    </svg>
+                  {/if}
+                </span>
+                <div class="ddns-domain-state">
+                  <div class="ddns-dot" style="background:var(--green)"></div>
+                  Activo
+                </div>
+              </div>
+            </div>
+          </div>
+          {#if ddnsMsg}
+            <div class="ddns-msg" class:error={ddnsMsgError} style="margin-top:6px">{ddnsMsg}</div>
+          {/if}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="ddns-add-btn" on:click={() => { ddnsEditing = true; ddnsForm = { provider:'', domain:'', token:'', username:'', password:'' }; }}>
+            + Añadir dominio
+          </div>
+        {:else}
+          <div class="ddns-form">
+            <div class="form-field">
+              <label class="form-label">Proveedor</label>
+              <select class="form-select" bind:value={ddnsForm.provider}>
+                <option value="">Seleccionar...</option>
+                <option value="duckdns">DuckDNS</option>
+                <option value="noip">No-IP</option>
+                <option value="dynu">Dynu</option>
+                <option value="freedns">FreeDNS</option>
+              </select>
+            </div>
             {#if ddnsForm.provider === 'duckdns'}
               <div class="form-field">
                 <label class="form-label">Subdominio</label>
@@ -606,7 +492,6 @@
                 <label class="form-label">Token</label>
                 <input class="form-input" type="password" placeholder="Token de DuckDNS" bind:value={ddnsForm.token} />
               </div>
-
             {:else if ddnsForm.provider === 'noip'}
               <div class="form-field">
                 <label class="form-label">Hostname</label>
@@ -618,206 +503,142 @@
               </div>
               <div class="form-field">
                 <label class="form-label">Contraseña</label>
-                <input class="form-input" type="password" placeholder="Contraseña de No-IP" bind:value={ddnsForm.password} />
+                <input class="form-input" type="password" bind:value={ddnsForm.password} />
               </div>
-
             {:else if ddnsForm.provider === 'dynu'}
               <div class="form-field">
                 <label class="form-label">Hostname</label>
                 <input class="form-input" type="text" placeholder="midominio.dynu.net" bind:value={ddnsForm.domain} />
               </div>
               <div class="form-field">
-                <label class="form-label">Password / IP Update Password</label>
-                <input class="form-input" type="password" placeholder="Password de Dynu" bind:value={ddnsForm.token} />
+                <label class="form-label">Password</label>
+                <input class="form-input" type="password" bind:value={ddnsForm.token} />
               </div>
-
             {:else if ddnsForm.provider === 'freedns'}
               <div class="form-field">
                 <label class="form-label">Update Key</label>
-                <input class="form-input" type="text" placeholder="Tu clave de actualización de FreeDNS" bind:value={ddnsForm.token} />
+                <input class="form-input" type="text" bind:value={ddnsForm.token} />
               </div>
             {/if}
+            {#if ddnsForm.provider}
+              <div class="form-actions">
+                <button class="btn-accent" on:click={saveDdns} disabled={ddnsSaving}>{ddnsSaving ? 'Guardando...' : 'Guardar'}</button>
+                <button class="btn-secondary" on:click={testDdns} disabled={ddnsTesting}>{ddnsTesting ? 'Probando...' : 'Probar'}</button>
+                {#if ddnsData.config?.enabled}
+                  <button class="btn-secondary" on:click={() => ddnsEditing = false}>Cancelar</button>
+                {/if}
+              </div>
+            {/if}
+            {#if ddnsMsg}
+              <div class="ddns-msg" class:error={ddnsMsgError}>{ddnsMsg}</div>
+            {/if}
+          </div>
+        {/if}
+        {#if ddnsData.lastLog}
+          <div class="ddns-log"><span class="ddns-log-text">{ddnsData.lastLog}</span></div>
+        {/if}
 
-            <div class="form-actions">
-              <button class="btn-accent" on:click={saveDdns} disabled={ddnsSaving}>
-                {ddnsSaving ? 'Guardando...' : 'Guardar'}
-              </button>
-              <button class="btn-secondary" on:click={testDdns} disabled={ddnsTesting}>
-                {ddnsTesting ? 'Probando...' : 'Probar'}
-              </button>
-              {#if ddnsData.config?.enabled}
-                <button class="btn-secondary" on:click={() => { ddnsEditing = false; }}>Cancelar</button>
-              {/if}
-            </div>
-          {/if}
-
-          {#if ddnsMsg}
-            <div class="ddns-msg" class:error={ddnsMsgError}>{ddnsMsg}</div>
-          {/if}
-        </div>
-      {/if}
-
-      {#if ddnsData.lastLog}
-        <div class="ddns-log">
-          <span class="ddns-log-text">{ddnsData.lastLog}</span>
-        </div>
-      {/if}
-
-    <!-- ══ PROXY ══ -->
       {:else if activeSub === 'proxy'}
-      <div class="sub-tabs">
-        {#each [['ports','Port Exposure'],['ddns','DDNS'],['proxy','Reverse Proxy'],['certs','Certificates']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
-      </div>
-      <div class="section-label">Reverse Proxy</div>
-      {#if !proxyData.rules?.length}
-        <p class="empty-msg">Sin reglas configuradas</p>
-      {:else}
-        <div class="proxy-list">
-          {#each proxyData.rules as rule}
-            <div class="proxy-row">
-              <div class="proxy-from">{rule.from || rule.source}</div>
-              <div class="proxy-arrow">→</div>
-              <div class="proxy-to">{rule.to || rule.target}</div>
-            </div>
-          {/each}
-        </div>
-      {/if}
-
-    <!-- ══ CERTS ══ -->
-      {:else if activeSub === 'certs'}
-      <div class="sub-tabs">
-        {#each [['ports','Port Exposure'],['ddns','DDNS'],['proxy','Reverse Proxy'],['certs','Certificates']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
-      </div>
-
-
-      <!-- Request form — only when no valid cert -->
-      {#if !certData.ssl?.valid}
-        <div class="section-label">SSL Certificate</div>
-
-        {#if certDomain}
-          <div class="cert-domain-preview">
-            <span class="cert-label">Dominio</span>
-            <span class="cert-domain-val">{certDomain}</span>
-            <span class="cert-domain-src">desde DDNS</span>
-          </div>
-
-          <div class="form-field" style="margin-top:14px;max-width:360px">
-            <label class="form-label">Email (Let's Encrypt)</label>
-            <input class="form-input" type="email" placeholder="admin@example.com" bind:value={certEmail} />
-          </div>
-
-          <button class="btn-accent" style="margin-top:12px" on:click={requestCert} disabled={certRequesting}>
-            {certRequesting ? 'Solicitando...' : 'Solicitar certificado'}
-          </button>
+        <div class="section-label">Reverse Proxy</div>
+        {#if !proxyData.rules?.length}
+          <p class="empty-msg">Sin reglas configuradas</p>
         {:else}
-          <p class="empty-msg">Configura un dominio DDNS primero.</p>
-        {/if}
-
-        {#if certMsg}
-          <div class="ddns-msg" class:error={certMsgError} style="margin-top:10px">{certMsg}</div>
-        {/if}
-      {/if}
-
-      <!-- Cert details — always shown when valid -->
-      {#if certData.ssl?.valid}
-        <div class="section-label">Certificado activo</div>
-        <div class="cert-card">
-          <div class="cert-card-header">
-            <div class="cert-dot" style="background:var(--green)"></div>
-            <span class="cert-card-status">Válido · {certData.ssl?.daysLeft ?? '?'} días restantes</span>
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <span class="cert-refresh" on:click={requestCert} title="Renovar">
-              {#if certRequesting}
-                <span class="cert-spinner"></span>
-              {:else}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                  <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
-                  <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-                </svg>
-              {/if}
-            </span>
+          <div class="proxy-list">
+            {#each proxyData.rules as rule}
+              <div class="proxy-row">
+                <div class="proxy-from">{rule.from || rule.source}</div>
+                <div class="proxy-arrow">→</div>
+                <div class="proxy-to">{rule.to || rule.target}</div>
+              </div>
+            {/each}
           </div>
-
-          <div class="cert-card-grid">
-            <div class="cert-cell">
-              <span class="cert-cell-label">Dominio</span>
-              <span class="cert-cell-value">{certData.ssl?.domain || certDomain}</span>
-            </div>
-            <div class="cert-cell">
-              <span class="cert-cell-label">Expira</span>
-              <span class="cert-cell-value">{certData.ssl?.expiry || '—'}</span>
-            </div>
-            <div class="cert-cell">
-              <span class="cert-cell-label">Emisor</span>
-              <span class="cert-cell-value">Let's Encrypt</span>
-            </div>
-            <div class="cert-cell">
-              <span class="cert-cell-label">Renovación</span>
-              <span class="cert-cell-value">Automática (certbot)</span>
-            </div>
-          </div>
-        </div>
-
-        {#if certMsg}
-          <div class="ddns-msg" class:error={certMsgError} style="margin-top:10px">{certMsg}</div>
         {/if}
-      {/if}
 
-    <!-- ══ FIREWALL ══ -->
-      {:else if activeSub === 'firewall'}
-      <div class="sub-tabs">
-        {#each [['firewall','Firewall'],['fail2ban','Fail2ban']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
-      </div>
-      <div class="section-label">Firewall</div>
-      {#if firewallData.ports?.length}
-        <div class="section-label" style="margin-top:4px;margin-bottom:8px">Puertos abiertos</div>
-        <div class="port-list">
-          {#each firewallData.ports as port}
-            <div class="port-tag">{port.port || port}/{port.proto || 'tcp'}</div>
-          {/each}
-        </div>
-      {/if}
-      {#if firewallData.rules?.length}
-        <div class="section-label" style="margin-top:14px;margin-bottom:8px">Reglas</div>
-        <div class="rule-list">
-          {#each firewallData.rules as rule}
-            <div class="rule-row">
-              <span class="rule-action" class:allow={rule.action === 'ACCEPT'} class:deny={rule.action === 'DROP' || rule.action === 'REJECT'}>
-                {rule.action}
+      {:else if activeSub === 'certs'}
+        {#if !certData.ssl?.valid}
+          <div class="section-label">SSL Certificate</div>
+          {#if certDomain}
+            <div class="cert-domain-preview">
+              <span class="cert-label">Dominio</span>
+              <span class="cert-domain-val">{certDomain}</span>
+              <span class="cert-domain-src">desde DDNS</span>
+            </div>
+            <div class="form-field" style="margin-top:14px;max-width:360px">
+              <label class="form-label">Email (Let's Encrypt)</label>
+              <input class="form-input" type="email" placeholder="admin@example.com" bind:value={certEmail} />
+            </div>
+            <button class="btn-accent" style="margin-top:12px" on:click={requestCert} disabled={certRequesting}>
+              {certRequesting ? 'Solicitando...' : 'Solicitar certificado'}
+            </button>
+          {:else}
+            <p class="empty-msg">Configura un dominio DDNS primero.</p>
+          {/if}
+          {#if certMsg}
+            <div class="ddns-msg" class:error={certMsgError} style="margin-top:10px">{certMsg}</div>
+          {/if}
+        {/if}
+        {#if certData.ssl?.valid}
+          <div class="section-label">Certificado activo</div>
+          <div class="cert-card">
+            <div class="cert-card-header">
+              <div class="cert-dot" style="background:var(--green)"></div>
+              <span class="cert-card-status">Válido · {certData.ssl?.daysLeft ?? '?'} días restantes</span>
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <span class="cert-refresh" on:click={requestCert}>
+                {#if certRequesting}
+                  <span class="cert-spinner"></span>
+                {:else}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
+                    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+                  </svg>
+                {/if}
               </span>
-              <span class="rule-desc">{rule.source || 'any'} → {rule.dest || 'any'} : {rule.port || '*'}</span>
             </div>
-          {/each}
-        </div>
-      {:else if !firewallData.ports?.length}
-        <p class="empty-msg">Sin reglas activas</p>
-      {/if}
+            <div class="cert-card-grid">
+              <div class="cert-cell"><span class="cert-cell-label">Dominio</span><span class="cert-cell-value">{certData.ssl?.domain || certDomain}</span></div>
+              <div class="cert-cell"><span class="cert-cell-label">Expira</span><span class="cert-cell-value">{certData.ssl?.expiry || '—'}</span></div>
+              <div class="cert-cell"><span class="cert-cell-label">Emisor</span><span class="cert-cell-value">Let's Encrypt</span></div>
+              <div class="cert-cell"><span class="cert-cell-label">Renovación</span><span class="cert-cell-value">Automática</span></div>
+            </div>
+          </div>
+          {#if certMsg}
+            <div class="ddns-msg" class:error={certMsgError} style="margin-top:10px">{certMsg}</div>
+          {/if}
+        {/if}
 
-    <!-- ══ FAIL2BAN ══ -->
+      {:else if activeSub === 'firewall'}
+        <div class="section-label">Firewall</div>
+        {#if firewallData.ports?.length}
+          <div class="section-label" style="margin-bottom:8px">Puertos abiertos</div>
+          <div class="port-list">
+            {#each firewallData.ports as port}
+              <div class="port-tag">{port.port || port}/{port.proto || 'tcp'}</div>
+            {/each}
+          </div>
+        {/if}
+        {#if firewallData.rules?.length}
+          <div class="section-label" style="margin-top:14px;margin-bottom:8px">Reglas</div>
+          <div class="rule-list">
+            {#each firewallData.rules as rule}
+              <div class="rule-row">
+                <span class="rule-action" class:allow={rule.action === 'ACCEPT'} class:deny={rule.action === 'DROP' || rule.action === 'REJECT'}>{rule.action}</span>
+                <span class="rule-desc">{rule.source || 'any'} → {rule.dest || 'any'} : {rule.port || '*'}</span>
+              </div>
+            {/each}
+          </div>
+        {:else if !firewallData.ports?.length}
+          <p class="empty-msg">Sin reglas activas</p>
+        {/if}
+
       {:else if activeSub === 'fail2ban'}
-      <div class="sub-tabs">
-        {#each [['firewall','Firewall'],['fail2ban','Fail2ban']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
-      </div>
-      <div class="section-label">Fail2ban</div>
-      <p class="empty-msg">Protección contra fuerza bruta — coming soon</p>
+        <div class="section-label">Fail2ban</div>
+        <p class="empty-msg">Protección contra fuerza bruta — coming soon</p>
+
+      {/if}
     {/if}
+  </div>
 </div>
 
 <style>
