@@ -84,8 +84,9 @@
       ]);
       catalog = await catRes.json();
       if (appsRes.ok) {
-        const apps = await appsRes.json();
-        for (const app of (apps || [])) {
+        const data = await appsRes.json();
+        const apps = data.apps || [];
+        for (const app of apps) {
           const id = app.id || app.name;
           if (catalog.apps[id]) {
             installed[id] = { status: 'running', port: catalog.apps[id].port };
