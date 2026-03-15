@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -1009,7 +1010,16 @@ func handleUpdateApply(w http.ResponseWriter) {
 	os.MkdirAll("/var/log/nimbusos", 0755)
 	os.Remove("/var/log/nimbusos/update-result.json")
 	go func() {
-		run(fmt.Sprintf("setsid bash %s >> /var/log/nimbusos/update.log 2>&1 &", script))
+		logFile, err := os.OpenFile("/var/log/nimbusos/update.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return
+		}
+		defer logFile.Close()
+		cmd := exec.Command("bash", script)
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+		cmd.Dir = "/opt/nimbusos"
+		cmd.Run()
 	}()
 	jsonOk(w, map[string]interface{}{"ok": true, "message": "Update started."})
 }
