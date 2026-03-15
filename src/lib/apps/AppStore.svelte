@@ -20,33 +20,33 @@
   let dockerInstalling = false;
   let dockerError = null;
   let hasPool = false;
+  let dockerPath = '';
+
+  function generatePassword() {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    return Array.from({ length: 24 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  }
 
   async function checkDocker() {
     try {
-      // Check storage pool first
       const poolRes = await fetch('/api/storage/status', { headers: hdrs() });
       const poolData = await poolRes.json();
       hasPool = poolData.hasPool === true || (poolData.pools?.length > 0);
 
-      if (!hasPool) {
-        loading = false;
-        return;
-      }
+      if (!hasPool) { loading = false; return; }
 
-      // Check docker status
       const res = await fetch('/api/docker/status', { headers: hdrs() });
       const data = await res.json();
+      dockerPath = data.path || '';
       
       if (data.installed && data.dockerRunning) {
         dockerReady = true;
         await loadCatalog();
       } else {
-        // Auto-install Docker
         await installDocker();
       }
     } catch(e) {
       console.error('[AppStore] Docker check failed:', e);
-      // Try loading catalog anyway
       dockerReady = true;
       await loadCatalog();
     }
@@ -101,8 +101,34 @@
   async function installApp(appId) {
     const app = catalog.apps[appId];
     if (!app) return;
+    if (!app.compose) { alert('Esta app no tiene configuración de instalación'); return; }
     installing = { ...installing, [appId]: true };
     try {
+      // Process env variables — same as beta 4
+      const configPath = `${dockerPath}/containers/${appId}`;
+      const processedEnv = {
+        CONFIG_PATH: configPath,
+        TZ: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Madrid',
+        HOST_IP: window.location.hostname,
+        DOWNLOADS_PATH: `${configPath}/downloads`,
+        MEDIA_PATH: `${configPath}/media`,
+        DATA_PATH: `${configPath}/data`,
+        MUSIC_PATH: `${configPath}/music`,
+        PROJECTS_PATH: `${configPath}/projects`,
+        UPLOAD_LOCATION: `${configPath}/upload`,
+        DB_DATA_LOCATION: `${configPath}/postgres`,
+      };
+
+      // Add app-specific env (overrides defaults)
+      if (app.env) {
+        for (const [key, value] of Object.entries(app.env)) {
+          let v = String(value);
+          if (v === '{RANDOM}') v = generatePassword();
+          v = v.replace(/\$\{CONFIG_PATH\}/g, configPath);
+          processedEnv[key] = v;
+        }
+      }
+
       const res = await fetch('/api/docker/stack', {
         method: 'POST',
         headers: { ...hdrs(), 'Content-Type': 'application/json' },
@@ -110,9 +136,10 @@
           id: appId,
           name: app.name,
           compose: app.compose,
+          env: processedEnv,
           icon: app.icon,
+          color: app.color || '#607D8B',
           port: app.port,
-          env: app.env || {},
           external: app.external || false,
         }),
       });
