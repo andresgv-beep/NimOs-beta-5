@@ -954,4 +954,13 @@
     font-size:12px; font-weight:500; color:var(--green);
     font-family:'DM Mono',monospace;
   }
+
+  /* ── CERT DETAILS (Port Exposure connection info) ── */
+  .cert-details { display:flex; flex-direction:column; gap:0; }
+  .cert-row {
+    display:flex; align-items:baseline; justify-content:space-between;
+    padding:7px 0; border-bottom:1px solid var(--border); gap:12px;
+  }
+  .cert-label { font-size:10px; color:var(--text-3); flex-shrink:0; min-width:120px; }
+  .cert-value { font-size:11px; color:var(--text-1); font-family:'DM Mono',monospace; word-break:break-all; }
 </style>

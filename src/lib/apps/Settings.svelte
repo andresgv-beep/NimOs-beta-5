@@ -49,8 +49,16 @@
 
   let prevNetworkTab = networkTab;
   let prevSystemTab = systemTab;
-  $: if (networkTab !== prevNetworkTab) { prevNetworkTab = networkTab; networkSub = networkSubSections[networkTab]?.[0]?.id || 'interfaces'; }
-  $: if (systemTab !== prevSystemTab)   { prevSystemTab = systemTab;  systemSub  = systemSubSections[systemTab]?.[0]?.id  || 'monitor'; }
+  $: if (networkTab !== prevNetworkTab) {
+    prevNetworkTab = networkTab;
+    networkSub = networkSubSections[networkTab]?.[0]?.id || 'interfaces';
+    if (activeView === 'network') sidebarLevel = 'network-sub';
+  }
+  $: if (systemTab !== prevSystemTab) {
+    prevSystemTab = systemTab;
+    systemSub = systemSubSections[systemTab]?.[0]?.id || 'monitor';
+    if (activeView === 'system-panel') sidebarLevel = 'system-sub';
+  }
 
   const sidebarItems = [
     { id: 'system', section: 'Sistema', label: 'Sistema', icon: 'grid' },
