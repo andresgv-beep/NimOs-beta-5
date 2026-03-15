@@ -5,34 +5,44 @@
   export let port = null;
   export let name = '';
 
-  let status = 'loading'; // loading | ready | error
+  let status = 'loading';
   let iframeEl;
 
-  $: baseUrl = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-  $: appUrl = `http://${baseUrl}:${port}`;
+  // Use reverse proxy: /app/{appId}/ — same origin, no mixed content, no X-Frame-Options
+  $: proxyUrl = `/app/${appId}/`;
+  // Direct URL for "open in browser" fallback
+  $: directUrl = typeof window !== 'undefined' ? `http://${window.location.hostname}:${port}` : '';
 
   onMount(() => {
-    if (!port) { status = 'error'; return; }
+    if (!port || !appId) { status = 'error'; return; }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
 
-    fetch(appUrl, { mode: 'no-cors', signal: controller.signal })
-      .then(() => { clearTimeout(timeout); status = 'ready'; })
-      .catch(() => { clearTimeout(timeout); status = 'error'; });
+    fetch(proxyUrl, { signal: controller.signal })
+      .then((res) => {
+        clearTimeout(timeout);
+        status = 'ready';
+      })
+      .catch(() => {
+        clearTimeout(timeout);
+        status = 'error';
+      });
 
     return () => { clearTimeout(timeout); controller.abort(); };
   });
 
   function openExternal() {
-    window.open(appUrl, '_blank');
+    window.open(directUrl, '_blank');
   }
 
   function reload() {
     status = 'loading';
     if (iframeEl) {
       iframeEl.src = 'about:blank';
-      setTimeout(() => { iframeEl.src = appUrl; status = 'ready'; }, 200);
+      setTimeout(() => { iframeEl.src = proxyUrl; status = 'ready'; }, 300);
+    } else {
+      setTimeout(() => { status = 'ready'; }, 300);
     }
   }
 </script>
@@ -57,9 +67,8 @@
     <iframe
       bind:this={iframeEl}
       class="iframe"
-      src={appUrl}
+      src={proxyUrl}
       title={name || appId}
-      sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
       allow="fullscreen; autoplay; clipboard-write"
     ></iframe>
   {/if}
