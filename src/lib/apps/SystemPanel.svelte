@@ -23,6 +23,7 @@
 
   // ── Shared Folders state ──
   let editingShare = null;
+  let wizardStep = 1; // 1 = info, 2 = permisos/resumen
   let savingShare  = false;
   let shareMsg     = '';
   let shareMsgError = false;
@@ -44,6 +45,7 @@
   }
 
   function startEditShare(s) {
+    wizardStep = 1;
     const perms = {};
     if (s.permissions) {
       for (const [u, p] of Object.entries(s.permissions)) {
@@ -190,12 +192,10 @@
     {#if loading}
       <div class="s-loading"><div class="spinner"></div></div>
 
-    <!-- ══ MONITOR ══ -->
     {:else if activeSub === 'monitor'}
       <div class="section-label">Monitor del sistema</div>
       <p class="coming-soon">Dashboard — coming soon</p>
 
-    <!-- ══ USERS ══ -->
     {:else if activeSub === 'users'}
       <div class="section-label">Usuarios</div>
       {#if users.length === 0}
@@ -215,17 +215,17 @@
         </div>
       {/if}
 
-    <!-- ══ PERMISSIONS: SHARED FOLDERS ══ -->
     {:else if activeSub === 'sharefolders'}
       <div class="sub-tabs">
-        {#each [['sharefolders','Shared Folders'],['apppermissions','App Permissions']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="sub-tab" class:active={activeSub === 'sharefolders'} on:click={() => activeSub = 'sharefolders'}>Shared Folders</div>
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="sub-tab" class:active={activeSub === 'apppermissions'} on:click={() => activeSub = 'apppermissions'}>App Permissions</div>
       </div>
-      <div class="section-label">Carpetas compartidas</div>
 
+      <div class="section-label">Carpetas compartidas</div>
       {#if shares.length > 0}
         <div class="share-list">
           {#each shares as s}
@@ -246,103 +246,32 @@
             </div>
           {/each}
         </div>
-        <div class="pool-sep"></div>
       {/if}
 
-      <!-- Create / Edit form -->
-      {#if editingShare}
-        <div class="section-label" style="margin-top:8px">{editingShare._isNew ? 'Crear carpeta compartida' : `Editar: ${editingShare.displayName || editingShare.name}`}</div>
-        <div class="share-form">
-          {#if editingShare._isNew}
-            <div class="form-field">
-              <label class="form-label">Nombre</label>
-              <input class="form-input" type="text" placeholder="documentos" bind:value={editingShare.name} />
-            </div>
-
-            <div class="form-field">
-              <label class="form-label">Descripción</label>
-              <input class="form-input" type="text" placeholder="Archivos compartidos del equipo" bind:value={editingShare.description} />
-            </div>
-
-            <div class="form-field">
-              <label class="form-label">Pool de almacenamiento</label>
-              <select class="form-select" bind:value={editingShare.pool}>
-                {#each pools as pool}
-                  <option value={pool.name}>{pool.name} — {pool.totalFormatted || '—'} ({pool.raidLevel})</option>
-                {/each}
-              </select>
-            </div>
-          {/if}
-
-          <!-- User Permissions -->
-          <div class="form-field">
-            <label class="form-label">Permisos de usuario</label>
-            <div class="perm-table">
-              <div class="perm-header">
-                <span class="perm-col-user">Usuario</span>
-                <span class="perm-col-perm">Permiso</span>
-              </div>
-              {#each users as u}
-                <div class="perm-row">
-                  <div class="perm-col-user">
-                    <span class="perm-user-avatar">{(u.username || '?')[0].toUpperCase()}</span>
-                    <span class="perm-user-name">{u.username}</span>
-                    {#if u.role === 'admin'}<span class="perm-admin-tag">admin</span>{/if}
-                  </div>
-                  <div class="perm-col-perm">
-                    <select class="form-select perm-select"
-                      value={editingShare._perms[u.username] || 'none'}
-                      on:change={(e) => { editingShare._perms[u.username] = e.target.value; editingShare = editingShare; }}>
-                      <option value="none">Sin acceso</option>
-                      <option value="ro">Solo lectura</option>
-                      <option value="rw">Lectura / Escritura</option>
-                    </select>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          </div>
-
-          <div class="form-actions">
-            <button class="btn-accent" on:click={saveShare} disabled={savingShare}>
-              {savingShare ? 'Guardando...' : editingShare._isNew ? 'Crear carpeta' : 'Guardar cambios'}
-            </button>
-            <button class="btn-secondary" on:click={() => editingShare = null}>Cancelar</button>
-          </div>
-
-          {#if shareMsg}
-            <div class="share-msg" class:error={shareMsgError}>{shareMsg}</div>
-          {/if}
-        </div>
+      {#if pools.length > 0}
+        <button class="btn-accent" style="margin-top:14px" on:click={startNewShare}>+ Nueva carpeta compartida</button>
       {:else}
-        {#if pools.length > 0}
-          <button class="btn-accent" style="margin-top:4px" on:click={startNewShare}>+ Nueva carpeta compartida</button>
-        {:else}
-          <p class="coming-soon" style="margin-top:8px">Crea un pool de almacenamiento en Storage Manager primero.</p>
-        {/if}
+        <p class="coming-soon" style="margin-top:8px">Crea un pool de almacenamiento primero.</p>
       {/if}
 
-    <!-- ══ PERMISSIONS: APP PERMISSIONS ══ -->
     {:else if activeSub === 'apppermissions'}
       <div class="sub-tabs">
-        {#each [['sharefolders','Shared Folders'],['apppermissions','App Permissions']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="sub-tab" class:active={activeSub === 'sharefolders'} on:click={() => activeSub = 'sharefolders'}>Shared Folders</div>
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="sub-tab" class:active={activeSub === 'apppermissions'} on:click={() => activeSub = 'apppermissions'}>App Permissions</div>
       </div>
       <div class="section-label">Permisos de aplicaciones</div>
       <p class="coming-soon">App permissions — coming soon</p>
 
-    <!-- ══ PORTAL ══ -->
     {:else if activeSub === 'portal'}
       <div class="section-label">Portal de acceso</div>
       <p class="coming-soon">Portal configuration — coming soon</p>
 
-    <!-- ══ UPDATES ══ -->
     {:else if activeSub === 'updates'}
       <div class="section-label">Actualizaciones</div>
-
       <div class="field-group">
         <div class="field-row">
           <span class="field-label">Versión actual</span>
@@ -359,7 +288,6 @@
           </span>
         </div>
       </div>
-
       <div class="update-actions">
         <button class="btn-secondary" on:click={checkForUpdates} disabled={checking || applying}>
           {checking ? 'Comprobando...' : 'Comprobar actualizaciones'}
@@ -370,30 +298,165 @@
           </button>
         {/if}
       </div>
-
       {#if updateMsg}
         <div class="update-msg" class:error={updateMsgError}>{updateMsg}</div>
       {/if}
-
       {#if applying}
         <div class="update-progress">
           <div class="spinner" style="width:18px;height:18px"></div>
           <span>No cierres el navegador</span>
         </div>
       {/if}
-
       {#if updateData.type === 'full'}
-        <div class="update-card">
-          <span>✓ Daemon recompilado y reiniciado</span>
-        </div>
+        <div class="update-card"><span>✓ Daemon recompilado y reiniciado</span></div>
       {:else if updateData.type === 'frontend'}
-        <div class="update-card">
-          <span>✓ Frontend actualizado — recarga el navegador</span>
-        </div>
+        <div class="update-card"><span>✓ Frontend actualizado — recarga el navegador</span></div>
       {/if}
     {/if}
   </div>
 </div>
+
+<!-- ══ MODAL WIZARD — Nueva / Editar carpeta ══ -->
+{#if editingShare}
+  <!-- Overlay -->
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-overlay" on:click|self={() => editingShare = null}></div>
+
+  <div class="modal">
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="modal-title">
+        {editingShare._isNew ? 'Nueva carpeta compartida' : `Editar: ${editingShare.displayName || editingShare.name}`}
+      </div>
+      <div class="modal-steps">
+        <div class="modal-step" class:active={wizardStep === 1} class:done={wizardStep > 1}>1</div>
+        {#if editingShare._isNew}
+          <div class="modal-step-line" class:done={wizardStep > 1}></div>
+          <div class="modal-step" class:active={wizardStep === 2}>2</div>
+        {/if}
+      </div>
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="modal-close" on:click={() => editingShare = null}>✕</div>
+    </div>
+
+    <!-- Body -->
+    <div class="modal-body">
+      {#if wizardStep === 1}
+        <!-- Step 1: Info básica (solo para nueva) o directo permisos (editar) -->
+        {#if editingShare._isNew}
+          <div class="modal-step-label">Información básica</div>
+          <div class="form-field">
+            <label class="form-label">Nombre <span style="color:var(--red)">*</span></label>
+            <input class="form-input" type="text" placeholder="documentos" bind:value={editingShare.name} autofocus />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Descripción</label>
+            <input class="form-input" type="text" placeholder="Archivos compartidos del equipo" bind:value={editingShare.description} />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Pool de almacenamiento</label>
+            <select class="form-select" bind:value={editingShare.pool}>
+              {#each pools as pool}
+                <option value={pool.name}>{pool.name} — {pool.totalFormatted || '—'} ({pool.raidLevel})</option>
+              {/each}
+            </select>
+          </div>
+        {:else}
+          <!-- Editar: va directo a permisos, sin step 2 -->
+          <div class="modal-step-label">Permisos de usuario</div>
+          <div class="perm-table">
+            <div class="perm-header">
+              <span class="perm-col-user">Usuario</span>
+              <span class="perm-col-perm">Permiso</span>
+            </div>
+            {#each users as u}
+              <div class="perm-row">
+                <div class="perm-col-user">
+                  <span class="perm-user-avatar">{(u.username || '?')[0].toUpperCase()}</span>
+                  <span class="perm-user-name">{u.username}</span>
+                  {#if u.role === 'admin'}<span class="perm-admin-tag">admin</span>{/if}
+                </div>
+                <div class="perm-col-perm">
+                  <select class="form-select perm-select"
+                    value={editingShare._perms[u.username] || 'none'}
+                    on:change={(e) => { editingShare._perms[u.username] = e.target.value; editingShare = editingShare; }}>
+                    <option value="none">Sin acceso</option>
+                    <option value="ro">Solo lectura</option>
+                    <option value="rw">Lectura / Escritura</option>
+                  </select>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+
+      {:else if wizardStep === 2}
+        <!-- Step 2: Permisos + resumen -->
+        <div class="modal-step-label">Permisos de usuario</div>
+        <div class="perm-table">
+          <div class="perm-header">
+            <span class="perm-col-user">Usuario</span>
+            <span class="perm-col-perm">Permiso</span>
+          </div>
+          {#each users as u}
+            <div class="perm-row">
+              <div class="perm-col-user">
+                <span class="perm-user-avatar">{(u.username || '?')[0].toUpperCase()}</span>
+                <span class="perm-user-name">{u.username}</span>
+                {#if u.role === 'admin'}<span class="perm-admin-tag">admin</span>{/if}
+              </div>
+              <div class="perm-col-perm">
+                <select class="form-select perm-select"
+                  value={editingShare._perms[u.username] || 'none'}
+                  on:change={(e) => { editingShare._perms[u.username] = e.target.value; editingShare = editingShare; }}>
+                  <option value="none">Sin acceso</option>
+                  <option value="ro">Solo lectura</option>
+                  <option value="rw">Lectura / Escritura</option>
+                </select>
+              </div>
+            </div>
+          {/each}
+        </div>
+
+        <!-- Resumen -->
+        <div class="modal-summary">
+          <div class="summary-label">Resumen</div>
+          <div class="summary-row"><span>Nombre</span><span>{editingShare.name}</span></div>
+          {#if editingShare.description}
+            <div class="summary-row"><span>Descripción</span><span>{editingShare.description}</span></div>
+          {/if}
+          <div class="summary-row"><span>Pool</span><span>{editingShare.pool}</span></div>
+        </div>
+      {/if}
+
+      {#if shareMsg}
+        <div class="share-msg" class:error={shareMsgError} style="margin-top:10px">{shareMsg}</div>
+      {/if}
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-footer">
+      {#if wizardStep === 2}
+        <button class="btn-secondary" on:click={() => wizardStep = 1}>← Anterior</button>
+      {:else}
+        <button class="btn-secondary" on:click={() => editingShare = null}>Cancelar</button>
+      {/if}
+
+      {#if editingShare._isNew && wizardStep === 1}
+        <button class="btn-accent" on:click={() => {
+          if (!editingShare.name.trim()) { shareMsg = 'Nombre requerido'; shareMsgError = true; return; }
+          shareMsg = ''; wizardStep = 2;
+        }}>Siguiente →</button>
+      {:else}
+        <button class="btn-accent" on:click={saveShare} disabled={savingShare}>
+          {savingShare ? 'Guardando...' : editingShare._isNew ? 'Crear carpeta' : 'Guardar cambios'}
+        </button>
+      {/if}
+    </div>
+  </div>
+{/if}
 
 <style>
   .sys-root { width:100%; height:100%; display:flex; overflow:hidden; }
@@ -575,3 +638,97 @@
   }
 
 </style>
+
+  /* ── MODAL WIZARD ── */
+  .modal-overlay {
+    position:absolute; inset:0; z-index:50;
+    background:rgba(0,0,0,0.55); backdrop-filter:blur(2px);
+    border-radius:10px;
+  }
+  .modal {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    z-index:51; width:480px; max-width:90%;
+    background:var(--bg-inner); border-radius:12px;
+    border:1px solid var(--border);
+    box-shadow:0 24px 60px rgba(0,0,0,0.5);
+    display:flex; flex-direction:column; overflow:hidden;
+    animation:modalIn .2s cubic-bezier(0.16,1,0.3,1) both;
+  }
+  @keyframes modalIn {
+    from { opacity:0; transform:translate(-50%,-48%) scale(0.97); }
+    to   { opacity:1; transform:translate(-50%,-50%) scale(1); }
+  }
+  .modal-header {
+    display:flex; align-items:center; gap:12px;
+    padding:14px 18px; border-bottom:1px solid var(--border);
+    background:var(--bg-bar); flex-shrink:0;
+  }
+  .modal-title { font-size:13px; font-weight:600; color:var(--text-1); flex:1; }
+  .modal-steps { display:flex; align-items:center; gap:6px; }
+  .modal-step {
+    width:22px; height:22px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:10px; font-weight:700;
+    background:var(--ibtn-bg); border:1px solid var(--border); color:var(--text-3);
+    transition:all .2s;
+  }
+  .modal-step.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .modal-step.done   { background:var(--green);  border-color:var(--green);  color:#fff; }
+  .modal-step-line {
+    width:20px; height:1px; background:var(--border); transition:background .2s;
+  }
+  .modal-step-line.done { background:var(--green); }
+  .modal-close {
+    width:24px; height:24px; border-radius:6px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--text-3); font-size:11px; transition:all .15s;
+    background:var(--ibtn-bg);
+  }
+  .modal-close:hover { color:var(--text-1); background:rgba(128,128,128,0.12); }
+
+  .modal-body {
+    padding:18px 20px; overflow-y:auto; max-height:400px;
+    display:flex; flex-direction:column; gap:14px;
+  }
+  .modal-body::-webkit-scrollbar { width:3px; }
+  .modal-body::-webkit-scrollbar-thumb { background:rgba(128,128,128,0.15); border-radius:2px; }
+  .modal-step-label {
+    font-size:9px; font-weight:600; color:var(--text-3);
+    text-transform:uppercase; letter-spacing:.08em;
+  }
+
+  .modal-summary {
+    padding:12px 14px; border-radius:8px;
+    border:1px solid var(--border); background:rgba(128,128,128,0.04);
+    margin-top:4px;
+  }
+  .summary-label {
+    font-size:9px; font-weight:600; color:var(--text-3);
+    text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px;
+  }
+  .summary-row {
+    display:flex; justify-content:space-between;
+    padding:5px 0; border-bottom:1px solid var(--border);
+    font-size:11px;
+  }
+  .summary-row span:first-child { color:var(--text-3); }
+  .summary-row span:last-child  { color:var(--text-1); font-family:'DM Mono',monospace; }
+
+  .modal-footer {
+    display:flex; align-items:center; justify-content:flex-end; gap:8px;
+    padding:12px 18px; border-top:1px solid var(--border);
+    background:var(--bg-bar); flex-shrink:0;
+  }
+
+  /* ── SUB-TABS ── */
+  .sub-tabs {
+    display:flex; gap:4px; margin-bottom:16px;
+    padding-bottom:12px; border-bottom:1px solid var(--border);
+  }
+  .sub-tab {
+    padding:5px 12px; border-radius:6px; cursor:pointer;
+    font-size:11px; font-weight:500; color:var(--text-3);
+    border:1px solid transparent; transition:all .15s;
+  }
+  .sub-tab:hover { color:var(--text-2); background:rgba(128,128,128,0.06); }
+  .sub-tab.active { background:var(--active-bg); color:var(--text-1); border-color:var(--border-hi); }
