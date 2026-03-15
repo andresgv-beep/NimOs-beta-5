@@ -194,12 +194,12 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="ctx-overlay" on:click={closeCtxMenu} on:contextmenu|preventDefault={closeCtxMenu}></div>
 
+  {@const ctxMeta = APP_META[ctxMenu.appId]}
   <div class="ctx-menu" style="left:{ctxMenu.x}px; top:{ctxMenu.y}px;">
-    {@const meta = APP_META[ctxMenu.appId]}
     <!-- Header -->
     <div class="ctx-header">
-      <span class="ctx-icon">{meta?.icon || '📦'}</span>
-      <span class="ctx-app-name">{meta?.name || ctxMenu.appId}</span>
+      <span class="ctx-icon">{ctxMeta?.icon || '📦'}</span>
+      <span class="ctx-app-name">{ctxMeta?.name || ctxMenu.appId}</span>
     </div>
     <div class="ctx-divider"></div>
 
