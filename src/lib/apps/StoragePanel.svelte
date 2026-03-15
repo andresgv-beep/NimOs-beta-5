@@ -65,11 +65,11 @@
     selectedDisk = selectedDisk?.name === d.name ? null : d;
   }
 
-  function toggleDiskSelect(name) {
-    if (newPool.disks.includes(name)) {
-      newPool.disks = newPool.disks.filter(n => n !== name);
+  function toggleDiskSelect(path) {
+    if (newPool.disks.includes(path)) {
+      newPool.disks = newPool.disks.filter(p => p !== path);
     } else {
-      newPool.disks = [...newPool.disks, name];
+      newPool.disks = [...newPool.disks, path];
     }
   }
 
@@ -131,8 +131,8 @@
         body: JSON.stringify({ disk: `/dev/${name}` }),
       });
       const data = await res.json();
-      if (data.ok || data.error === undefined) { wipeMsg = `${name} wipeado correctamente`; wipeMsgError = false; load(); }
-      else { wipeMsg = data.error || 'Error'; wipeMsgError = true; }
+      if (data.ok === true) { wipeMsg = `${name} wipeado correctamente`; wipeMsgError = false; await load(); }
+      else { wipeMsg = data.error || 'Error desconocido al wipear'; wipeMsgError = true; }
     } catch (e) { wipeMsg = 'Error de conexión'; wipeMsgError = true; }
     wiping = null;
   }
@@ -337,7 +337,7 @@
               <div class="disk-card-status">
                 {#if disk.provisioned}
                   <span class="disk-tag green">En pool</span>
-                {:else if disk.hasPartitions || disk.partitions}
+                {:else if disk.partitions?.length > 0}
                   <span class="disk-tag amber">Con particiones</span>
                 {:else}
                   <span class="disk-tag">Libre</span>
@@ -404,8 +404,8 @@
               {#each eligible.filter(d => !d.provisioned) as disk}
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <div class="disk-select-row" class:selected={newPool.disks.includes(disk.name)} on:click={() => toggleDiskSelect(disk.name)}>
-                  <div class="dsr-check">{newPool.disks.includes(disk.name) ? '✓' : ''}</div>
+                <div class="disk-select-row" class:selected={newPool.disks.includes(disk.path)} on:click={() => toggleDiskSelect(disk.path)}>
+                  <div class="dsr-check">{newPool.disks.includes(disk.path) ? '✓' : ''}</div>
                   <div class="dsr-name">{disk.name}</div>
                   <div class="dsr-model">{disk.model || '—'}</div>
                   <div class="dsr-size">{fmt(disk.size)}</div>
