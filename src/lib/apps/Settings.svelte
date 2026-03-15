@@ -203,14 +203,13 @@
           {/if}
 
         {:else if activeView === 'system'}
-          <!-- SystemPanel handles its own sub-tabs internally -->
-          <SystemPanel activeTab={systemTab} activeSub={systemSub} bind:activeSub={systemSub} />
+          <SystemPanel activeTab={systemTab} bind:activeSub={systemSub} />
 
         {:else if activeView === 'storage'}
           <StoragePanel activeTab={storageTab} />
 
         {:else if activeView === 'network'}
-          <NetworkPanel activeTab={networkTab} activeSub={networkSub} bind:activeSub={networkSub} />
+          <NetworkPanel activeTab={networkTab} bind:activeSub={networkSub} />
 
         {:else if activeView === 'security'}
           <div class="section-label">Seguridad</div>
