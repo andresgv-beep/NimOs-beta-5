@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -640,9 +642,18 @@ func dockerInstall(w http.ResponseWriter, r *http.Request) {
 
 	dockerAvailable := isDockerInstalledGo()
 	if !dockerAvailable {
-		cmd := exec.Command("bash", "-c", "curl -fsSL https://get.docker.com | sh")
-		if err := cmd.Run(); err == nil {
+		log.Println("Docker not found, installing...")
+		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "bash", "-c", "curl -fsSL https://get.docker.com | sh")
+		cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Printf("Docker install failed: %v\nOutput: %s", err, string(out))
+		} else {
+			log.Println("Docker installed successfully")
 			run("usermod -aG docker nimbus 2>/dev/null || true")
+			run("usermod -aG docker nimos 2>/dev/null || true")
 			dockerAvailable = true
 		}
 	}
