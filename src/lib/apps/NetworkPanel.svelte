@@ -201,12 +201,45 @@
     {#if loading}
       <div class="n-loading"><div class="spinner"></div></div>
 
-    <!-- ══ INTERFACES tab — sub: interfaces | dns ══ -->
-    {:else if activeTab === 'interfaces'}
-      <div class="sub-tabs">
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="sub-tab" class:active={activeSub === 'interfaces'} on:click={() => activeSub = 'interfaces'}>Network Interfaces</div>
+    {:else}
+      <!-- Sub-tabs for current activeTab -->
+      {#if activeTab === 'interfaces'}
+        <div class="sub-tabs">
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === 'interfaces'} on:click={() => activeSub = 'interfaces'}>Network Interfaces</div>
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sub-tab" class:active={activeSub === 'dns'} on:click={() => activeSub = 'dns'}>DNS</div>
+        </div>
+      {:else if activeTab === 'services'}
+        <div class="sub-tabs">
+          {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+          {/each}
+        </div>
+      {:else if activeTab === 'remoteaccess'}
+        <div class="sub-tabs">
+          {#each [['ports','Port Exposure'],['ddns','DDNS'],['proxy','Reverse Proxy'],['certs','Certificates']] as [id, label]}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+          {/each}
+        </div>
+      {:else if activeTab === 'security'}
+        <div class="sub-tabs">
+          {#each [['firewall','Firewall'],['fail2ban','Fail2ban']] as [id, label]}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
+          {/each}
+        </div>
+      {/if}
+
+      <!-- Content per activeSub -->
+      {#if activeSub === 'interfaces'}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div class="sub-tab" class:active={activeSub === 'dns'} on:click={() => activeSub = 'dns'}>DNS</div>
@@ -240,51 +273,44 @@
           {/each}
         </div>
       {/if}
+      {/if}
 
     <!-- ══ DNS (inside interfaces tab) ══ -->
-    {:else if activeSub === 'dns' && activeTab === 'interfaces'}
-      <div class="sub-tabs">
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="sub-tab" class:active={activeSub === 'interfaces'} on:click={() => activeSub = 'interfaces'}>Network Interfaces</div>
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="sub-tab" class:active={activeSub === 'dns'} on:click={() => activeSub = 'dns'}>DNS</div>
-      </div>
-      <div class="section-label">DNS y Hostname</div>
-      <div class="field-group">
-        <div class="field-row">
-          <span class="field-label">Hostname</span>
-          <span class="field-value">{dnsData.hostname || '—'}</span>
-        </div>
-        <div class="field-row">
-          <span class="field-label">DNS primario</span>
-          <span class="field-value">{dnsData.nameservers?.[0] || dnsData.dns1 || '—'}</span>
-        </div>
-        <div class="field-row">
-          <span class="field-label">DNS secundario</span>
-          <span class="field-value">{dnsData.nameservers?.[1] || dnsData.dns2 || '—'}</span>
-        </div>
-        {#if dnsData.domain}
-          <div class="field-row">
-            <span class="field-label">Dominio</span>
-            <span class="field-value">{dnsData.domain}</span>
-          </div>
-        {/if}
+      {:else if activeSub === 'dns'}
       </div>
 
-    <!-- ══ SERVICES tab sub-tabs ══ -->
-    {:else if activeTab === 'services'}
-      <div class="sub-tabs">
-        {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="sub-tab" class:active={activeSub === id} on:click={() => activeSub = id}>{label}</div>
-        {/each}
-      </div>
+      {#if activeSub === 'interfaces'}
+      <div class="section-label">Interfaces de red</div>
+      {#if netIfaces.length === 0}
+        <p class="empty-msg">No se detectaron interfaces</p>
+      {:else}
+        <div class="iface-list">
+          {#each netIfaces as iface}
+            <div class="iface-card">
+              <div class="iface-header">
+                <div class="iface-led" style="background:{iface.up ? 'var(--green)' : 'var(--text-3)'}; box-shadow:{iface.up ? '0 0 5px rgba(74,222,128,0.6)' : 'none'}"></div>
+                <div class="iface-name">{iface.name || iface.interface}</div>
+                <div class="iface-type">{iface.type || (iface.name?.startsWith('w') ? 'WiFi' : 'Ethernet')}</div>
+                <div class="iface-status" style="color:{statusColor(iface.up)}">{iface.up ? 'UP' : 'DOWN'}</div>
+              </div>
+              <div class="iface-body">
+                <div class="iface-row"><span>IP</span><span>{iface.ip || iface.address || '—'}</span></div>
+                {#if iface.ip6 || iface.ipv6}
+                  <div class="iface-row"><span>IPv6</span><span>{iface.ip6 || iface.ipv6}</span></div>
+                {/if}
+                <div class="iface-row"><span>MAC</span><span>{iface.mac || iface.hwaddr || '—'}</span></div>
+                {#if iface.speed}
+                  <div class="iface-row"><span>Velocidad</span><span>{iface.speed}</span></div>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+      {/if}
 
-    <!-- ══ SMB ══ -->
-    {:else if activeSub === 'smb'}
+    <!-- ══ DNS (inside interfaces tab) ══ -->
+      {:else if activeSub === 'smb'}
       <div class="sub-tabs">
         {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -318,7 +344,7 @@
       </div>
 
     <!-- ══ SSH ══ -->
-    {:else if activeSub === 'ssh'}
+      {:else if activeSub === 'ssh'}
       <div class="sub-tabs">
         {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -340,7 +366,7 @@
       </div>
 
     <!-- ══ FTP ══ -->
-    {:else if activeSub === 'ftp'}
+      {:else if activeSub === 'ftp'}
       <div class="sub-tabs">
         {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -361,7 +387,7 @@
       </div>
 
     <!-- ══ NFS ══ -->
-    {:else if activeSub === 'nfs'}
+      {:else if activeSub === 'nfs'}
       <div class="sub-tabs">
         {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -391,7 +417,7 @@
       </div>
 
     <!-- ══ WEBDAV ══ -->
-    {:else if activeSub === 'webdav'}
+      {:else if activeSub === 'webdav'}
       <div class="sub-tabs">
         {#each [['smb','SMB / CIFS'],['ssh','SSH'],['ftp','FTP / SFTP'],['nfs','NFS'],['webdav','WebDAV']] as [id, label]}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -414,7 +440,7 @@
       </div>
 
     <!-- ══ PORTS ══ -->
-    {:else if activeSub === 'ports'}
+      {:else if activeSub === 'ports'}
       <div class="sub-tabs">
         {#each [['ports','Port Exposure'],['ddns','DDNS'],['proxy','Reverse Proxy'],['certs','Certificates']] as [id, label]}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -486,7 +512,7 @@
       </div>
 
     <!-- ══ DDNS ══ -->
-    {:else if activeSub === 'ddns'}
+      {:else if activeSub === 'ddns'}
       <div class="sub-tabs">
         {#each [['ports','Port Exposure'],['ddns','DDNS'],['proxy','Reverse Proxy'],['certs','Certificates']] as [id, label]}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -644,7 +670,7 @@
       {/if}
 
     <!-- ══ PROXY ══ -->
-    {:else if activeSub === 'proxy'}
+      {:else if activeSub === 'proxy'}
       <div class="sub-tabs">
         {#each [['ports','Port Exposure'],['ddns','DDNS'],['proxy','Reverse Proxy'],['certs','Certificates']] as [id, label]}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -668,7 +694,7 @@
       {/if}
 
     <!-- ══ CERTS ══ -->
-    {:else if activeSub === 'certs'}
+      {:else if activeSub === 'certs'}
       <div class="sub-tabs">
         {#each [['ports','Port Exposure'],['ddns','DDNS'],['proxy','Reverse Proxy'],['certs','Certificates']] as [id, label]}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -753,7 +779,7 @@
       {/if}
 
     <!-- ══ FIREWALL ══ -->
-    {:else if activeSub === 'firewall'}
+      {:else if activeSub === 'firewall'}
       <div class="sub-tabs">
         {#each [['firewall','Firewall'],['fail2ban','Fail2ban']] as [id, label]}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -787,7 +813,7 @@
       {/if}
 
     <!-- ══ FAIL2BAN ══ -->
-    {:else if activeSub === 'fail2ban'}
+      {:else if activeSub === 'fail2ban'}
       <div class="sub-tabs">
         {#each [['firewall','Firewall'],['fail2ban','Fail2ban']] as [id, label]}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -797,10 +823,8 @@
       </div>
       <div class="section-label">Fail2ban</div>
       <p class="empty-msg">Protección contra fuerza bruta — coming soon</p>
+      {/if}
     {/if}
-  </div>
-</div>
-
 <style>
   .net-root { width:100%; height:100%; display:flex; overflow:hidden; }
   .net-content { flex:1; overflow-y:auto; padding:18px 20px; }
