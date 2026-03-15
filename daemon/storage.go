@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"net/http"
 	"os"
@@ -729,16 +730,40 @@ func writePoolIdentity(mountPoint, name, raidLevel, filesystem string, disks []s
 }
 
 func appendFstab(uuid, mountPoint, filesystem string) {
-	if uuid == "" {
+	// Check if already in fstab
+	existing, _ := os.ReadFile("/etc/fstab")
+	if strings.Contains(string(existing), mountPoint) {
 		return
 	}
-	entry := fmt.Sprintf("UUID=%s %s %s defaults,noatime 0 2\n", uuid, mountPoint, filesystem)
+
+	var entry string
+	if uuid != "" {
+		entry = fmt.Sprintf("UUID=%s %s %s defaults,nofail,noatime 0 2\n", uuid, mountPoint, filesystem)
+	} else {
+		// Fallback: find device by mount point
+		out, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint))
+		device := strings.TrimSpace(out)
+		if device == "" {
+			// Try md device directly
+			out2, _ := run(fmt.Sprintf("df %s 2>/dev/null | tail -1 | awk '{print $1}'", mountPoint))
+			device = strings.TrimSpace(out2)
+		}
+		if device != "" {
+			entry = fmt.Sprintf("%s %s %s defaults,nofail,noatime 0 2\n", device, mountPoint, filesystem)
+		} else {
+			log.Printf("appendFstab: cannot determine device for %s, skipping", mountPoint)
+			return
+		}
+	}
+
 	f, err := os.OpenFile("/etc/fstab", os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
+		log.Printf("appendFstab: cannot open /etc/fstab: %v", err)
 		return
 	}
 	defer f.Close()
 	f.WriteString(entry)
+	log.Printf("appendFstab: added %s to fstab", mountPoint)
 }
 
 func runExec(name string, args ...string) {
