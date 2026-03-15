@@ -366,71 +366,73 @@
         <div class="pool-msg" class:error={wipeMsgError} style="margin-top:8px">{wipeMsg}</div>
       {/if}
 
-      <!-- Create Pool -->
-      <div class="pool-sep"></div>
+      <!-- Create Pool — only show if there are free disks -->
+      {#if eligible.length > 0}
+        <div class="pool-sep"></div>
 
-      {#if !showCreatePool}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="create-pool-btn" on:click={() => showCreatePool = true}>
-          + Crear Pool
-        </div>
-      {:else}
-        <div class="section-label">Crear nuevo pool</div>
-        <div class="create-form">
-          <div class="form-field">
-            <label class="form-label">Nombre</label>
-            <input class="form-input" type="text" placeholder="main-storage" bind:value={newPool.name} />
+        {#if !showCreatePool}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="create-pool-btn" on:click={() => showCreatePool = true}>
+            + Crear Pool
           </div>
-
-          <div class="form-row">
-            <div class="form-field" style="flex:1">
-              <label class="form-label">RAID</label>
-              <select class="form-select" bind:value={newPool.level}>
-                <option value="single">Single</option>
-                <option value="0">RAID 0</option>
-                <option value="1">RAID 1</option>
-                <option value="5">RAID 5</option>
-                <option value="6">RAID 6</option>
-                <option value="10">RAID 10</option>
-              </select>
+        {:else}
+          <div class="section-label">Crear nuevo pool</div>
+          <div class="create-form">
+            <div class="form-field">
+              <label class="form-label">Nombre</label>
+              <input class="form-input" type="text" placeholder="main-storage" bind:value={newPool.name} />
             </div>
-            <div class="form-field" style="flex:1">
-              <label class="form-label">Filesystem</label>
-              <select class="form-select" bind:value={newPool.filesystem}>
-                <option value="ext4">ext4</option>
-                <option value="xfs">XFS</option>
-              </select>
+
+            <div class="form-row">
+              <div class="form-field" style="flex:1">
+                <label class="form-label">RAID</label>
+                <select class="form-select" bind:value={newPool.level}>
+                  <option value="single">Single</option>
+                  <option value="0">RAID 0</option>
+                  <option value="1">RAID 1</option>
+                  <option value="5">RAID 5</option>
+                  <option value="6">RAID 6</option>
+                  <option value="10">RAID 10</option>
+                </select>
+              </div>
+              <div class="form-field" style="flex:1">
+                <label class="form-label">Filesystem</label>
+                <select class="form-select" bind:value={newPool.filesystem}>
+                  <option value="ext4">ext4</option>
+                  <option value="xfs">XFS</option>
+                </select>
+              </div>
             </div>
-          </div>
 
-          <div class="form-field">
-            <label class="form-label">Seleccionar discos</label>
-            <div class="disk-select-list">
-              {#each eligible.filter(d => !d.provisioned) as disk}
-                <!-- svelte-ignore a11y_click_events_have_key_events -->
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <div class="disk-select-row" class:selected={newPool.disks.includes(disk.path)} on:click={() => toggleDiskSelect(disk.path)}>
-                  <div class="dsr-check">{newPool.disks.includes(disk.path) ? '✓' : ''}</div>
-                  <div class="dsr-name">{disk.name}</div>
-                  <div class="dsr-model">{disk.model || '—'}</div>
-                  <div class="dsr-size">{fmt(disk.size)}</div>
-                </div>
-              {/each}
+            <div class="form-field">
+              <label class="form-label">Seleccionar discos</label>
+              <div class="disk-select-list">
+                {#each eligible as disk}
+                  <!-- svelte-ignore a11y_click_events_have_key_events -->
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div class="disk-select-row" class:selected={newPool.disks.includes(disk.path)} on:click={() => toggleDiskSelect(disk.path)}>
+                    <div class="dsr-check">{newPool.disks.includes(disk.path) ? '✓' : ''}</div>
+                    <div class="dsr-name">{disk.name}</div>
+                    <div class="dsr-model">{disk.model || '—'}</div>
+                    <div class="dsr-size">{fmt(disk.size)}</div>
+                  </div>
+                {/each}
+              </div>
             </div>
-          </div>
 
-          <div class="form-actions">
-            <button class="btn-accent" on:click={createPool} disabled={creating}>
-              {creating ? 'Creando...' : 'Crear Pool'}
-            </button>
-            <button class="btn-secondary" on:click={() => showCreatePool = false}>Cancelar</button>
-          </div>
+            <div class="form-actions">
+              <button class="btn-accent" on:click={createPool} disabled={creating}>
+                {creating ? 'Creando...' : 'Crear Pool'}
+              </button>
+              <button class="btn-secondary" on:click={() => showCreatePool = false}>Cancelar</button>
+            </div>
 
-          {#if poolMsg}
-            <div class="pool-msg" class:error={poolMsgError}>{poolMsg}</div>
-          {/if}
-        </div>
+            {#if poolMsg}
+              <div class="pool-msg" class:error={poolMsgError}>{poolMsg}</div>
+            {/if}
+          </div>
+        {/if}
       {/if}
 
     {:else if activeTab === 'health'}
