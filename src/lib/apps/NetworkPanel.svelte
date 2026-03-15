@@ -129,9 +129,19 @@
     if (!certEmail) { certMsg = 'Introduce un email para Let\'s Encrypt'; certMsgError = true; return; }
     certRequesting = true; certMsg = '';
     try {
-      const res = await fetch('/api/certs/request', {
+      const provider = ddnsData.config?.provider || '';
+      const dnsToken = ddnsData.config?.token || '';
+      const useDns = provider === 'duckdns' && dnsToken;
+
+      const res = await fetch('/api/remote-access/request-ssl', {
         method: 'POST', headers: { ...hdrs(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain, email: certEmail, method: 'standalone' }),
+        body: JSON.stringify({
+          domain,
+          email: certEmail,
+          method: useDns ? 'dns' : 'standalone',
+          provider: useDns ? 'duckdns' : '',
+          dnsToken: useDns ? dnsToken : '',
+        }),
       });
       const data = await res.json();
       if (data.ok) { certMsg = 'Certificado obtenido correctamente'; certMsgError = false; loadTab('remoteaccess'); }
