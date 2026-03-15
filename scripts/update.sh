@@ -17,7 +17,7 @@ log "Current version: $PREV"
 
 # Save checksums to detect changes
 DAEMON_HASH=$(find "$DIR/daemon" -name "*.go" -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
-FRONTEND_HASH=$(md5sum "$DIR/dist/index.html" 2>/dev/null | cut -d' ' -f1)
+FRONTEND_HASH=$(find "$DIR/src" -type f -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
 
 # Download latest
 log "Downloading update..."
@@ -32,7 +32,7 @@ log "Downloaded version: $NEW"
 
 # Check what changed
 DAEMON_HASH_NEW=$(find "$DIR/daemon" -name "*.go" -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
-FRONTEND_HASH_NEW=$(md5sum "$DIR/dist/index.html" 2>/dev/null | cut -d' ' -f1)
+FRONTEND_HASH_NEW=$(find "$DIR/src" -type f -exec md5sum {} \; 2>/dev/null | sort | md5sum | cut -d' ' -f1)
 
 DAEMON_CHANGED=false
 FRONTEND_CHANGED=false
@@ -93,6 +93,14 @@ if [ "$DAEMON_CHANGED" = true ]; then
     fi
   fi
 
+  # Rebuild frontend if source also changed
+  if [ "$FRONTEND_CHANGED" = true ] && command -v npm &>/dev/null; then
+    log "Frontend source also changed — rebuilding..."
+    cd "$DIR"
+    npm install --omit=dev 2>&1 | tail -5 | tee -a "$LOG_FILE"
+    npm run build 2>&1 | tee -a "$LOG_FILE" || log "WARNING: Frontend build failed"
+  fi
+
   # Restart services
   log "Restarting services..."
   systemctl restart nimos-daemon
@@ -109,8 +117,20 @@ if [ "$DAEMON_CHANGED" = true ]; then
   fi
 
 elif [ "$FRONTEND_CHANGED" = true ]; then
-  # Frontend-only change — no rebuild needed, Go serves static files
-  log "Frontend-only changes — no restart needed"
+  log "Frontend source changed — rebuilding..."
+  cd "$DIR"
+  if command -v npm &>/dev/null; then
+    npm install --omit=dev 2>&1 | tail -5 | tee -a "$LOG_FILE"
+    if npm run build 2>&1 | tee -a "$LOG_FILE"; then
+      log "Frontend rebuilt successfully"
+    else
+      log "ERROR: Frontend build failed"
+      echo '{"type":"error","error":"frontend_build_failed","prev":"'"$PREV"'","new":"'"$NEW"'","time":"'$(date -Iseconds)'"}' > "$RESULT_FILE"
+      exit 1
+    fi
+  else
+    log "WARNING: npm not available — cannot rebuild frontend"
+  fi
   log "OK: $PREV -> $NEW (reload browser)"
   echo '{"type":"frontend","prev":"'"$PREV"'","new":"'"$NEW"'","time":"'$(date -Iseconds)'"}' > "$RESULT_FILE"
 
