@@ -317,6 +317,13 @@
     }
   }
 
+  $: chartPts = cpuHistory.map((v,i) => [
+    (i / (cpuHistory.length - 1 || 1)) * 300,
+    40 - (Math.min(100, v) / 100) * 36 - 2
+  ]);
+  $: chartLine = chartPts.map((p,i) => (i===0 ? `M ${p[0].toFixed(1)} ${p[1].toFixed(1)}` : `L ${p[0].toFixed(1)} ${p[1].toFixed(1)}`)).join(' ');
+  $: chartArea = chartLine + ' L 300 40 L 0 40 Z';
+
   $: cpuPct   = sysData.cpu?.percent    ?? sysData.cpuPercent ?? 0;
   $: memPct   = sysData.memory?.percent ?? sysData.memPercent ?? 0;
   $: memUsed  = sysData.memory?.used    ?? 0;
@@ -482,11 +489,6 @@
               <!-- Chart -->
               <div class="wg-chart-wrap">
                 <div class="wg-chart-label">CPU Activity</div>
-                {@const pts = cpuHistory.map((v,i) => [
-                  (i/(cpuHistory.length-1||1))*300,
-                  40 - (Math.min(100,v)/100)*36 - 2
-                ])}
-                {@const linePath = pts.map((p,i) => (i===0?`M ${p[0].toFixed(1)} ${p[1].toFixed(1)}`:`L ${p[0].toFixed(1)} ${p[1].toFixed(1)}`)).join(' ')}
                 <svg class="wg-chart-svg" viewBox="0 0 300 40" preserveAspectRatio="none">
                   <defs>
                     <linearGradient id="chart-grad-{widget.id}" x1="0" y1="0" x2="0" y2="1">
@@ -494,8 +496,8 @@
                       <stop offset="100%" stop-color="#f97316" stop-opacity="0"/>
                     </linearGradient>
                   </defs>
-                  <path d="{linePath} L 300 40 L 0 40 Z" fill="url(#chart-grad-{widget.id})"/>
-                  <path d={linePath} fill="none" stroke="#f97316" stroke-width="1.5" stroke-linejoin="round"/>
+                  <path d={chartArea} fill="url(#chart-grad-{widget.id})"/>
+                  <path d={chartLine} fill="none" stroke="#f97316" stroke-width="1.5" stroke-linejoin="round"/>
                 </svg>
               </div>
             {/if}
