@@ -271,6 +271,101 @@
   }
 
 
+  // ── LCD Clock ──
+  const LCD_DIGITS = [
+    [1,1,1,1,1,1,0], // 0
+    [0,1,1,0,0,0,0], // 1
+    [1,1,0,1,1,0,1], // 2
+    [1,1,1,1,0,0,1], // 3
+    [0,1,1,0,0,1,1], // 4
+    [1,0,1,1,0,1,1], // 5
+    [1,0,1,1,1,1,1], // 6
+    [1,1,1,0,0,0,0], // 7
+    [1,1,1,1,1,1,1], // 8
+    [1,1,1,1,0,1,1], // 9
+  ];
+
+  function drawLcdDigit(ctx, n, x, y, W, H, T, clrOn, clrOff) {
+    const R = 2;
+    const hw = W - T, hh = (H - T * 3) / 2;
+    const segs = LCD_DIGITS[n] || LCD_DIGITS[0];
+    const shapes = [
+      [x+T+R, y+R,          hw-R*2, T-R*2],   // top
+      [x+W-T+R, y+T+R,      T-R*2,  hh-R*2],  // top-right
+      [x+W-T+R, y+H/2+T/2+R, T-R*2, hh-R*2], // bot-right
+      [x+T+R, y+H-T+R,      hw-R*2, T-R*2],   // bottom
+      [x+R,   y+H/2+T/2+R,  T-R*2,  hh-R*2],  // bot-left
+      [x+R,   y+T+R,        T-R*2,  hh-R*2],  // top-left
+      [x+T+R, y+H/2-T/2+R,  hw-R*2, T-R*2],   // middle
+    ];
+    shapes.forEach(([rx,ry,rw,rh], i) => {
+      ctx.fillStyle = segs[i] ? clrOn : clrOff;
+      ctx.beginPath();
+      ctx.moveTo(rx+R, ry);
+      ctx.lineTo(rx+rw-R, ry); ctx.arcTo(rx+rw, ry, rx+rw, ry+R, R);
+      ctx.lineTo(rx+rw, ry+rh-R); ctx.arcTo(rx+rw, ry+rh, rx+rw-R, ry+rh, R);
+      ctx.lineTo(rx+R, ry+rh); ctx.arcTo(rx, ry+rh, rx, ry+rh-R, R);
+      ctx.lineTo(rx, ry+R); ctx.arcTo(rx, ry, rx+R, ry, R);
+      ctx.closePath(); ctx.fill();
+    });
+  }
+
+  function drawLcdPair(canvas, val) {
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = 36, H = 62, T = 6, GAP = 8;
+    const cw = (W*2 + GAP + 8), ch = H + 8;
+    canvas.width  = cw * dpr;
+    canvas.height = ch * dpr;
+    canvas.style.width  = cw + 'px';
+    canvas.style.height = ch + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, cw, ch);
+    const theme = document.documentElement.getAttribute('data-theme') || 'midnight';
+    const clrOn  = theme === 'light' ? 'rgba(20,20,20,0.88)'   : 'rgba(235,235,235,0.92)';
+    const clrOff = theme === 'light' ? 'rgba(0,0,0,0.07)'      : 'rgba(255,255,255,0.07)';
+    drawLcdDigit(ctx, Math.floor(val/10), 4,    4, W, H, T, clrOn, clrOff);
+    drawLcdDigit(ctx, val%10,             4+W+GAP, 4, W, H, T, clrOn, clrOff);
+  }
+
+  function updateLcdClocks() {
+    const now = new Date();
+    const DAYS   = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+    const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    const todayIdx = now.getDay();
+
+    document.querySelectorAll('.wg-lcd-canvas').forEach(canvas => {
+      const role = canvas.dataset.role;
+      drawLcdPair(canvas, role === 'hours' ? now.getHours() : now.getMinutes());
+    });
+
+    document.querySelectorAll('[id^="wg-days-"]').forEach(el => {
+      el.innerHTML = '';
+      DAYS.forEach((d, i) => {
+        const span = document.createElement('span');
+        span.textContent = d;
+        span.className = 'wg-day-item' + (i === todayIdx ? ' today' : '');
+        el.appendChild(span);
+      });
+    });
+
+    document.querySelectorAll('[id^="wg-datenum-"]').forEach(el => el.textContent = now.getDate());
+    document.querySelectorAll('[id^="wg-datemon-"]').forEach(el => el.textContent = MONTHS[now.getMonth()]);
+  }
+
+  // Hook into existing clock interval
+  onMount(() => {
+    setTimeout(updateLcdClocks, 100);
+  });
+
+  // Override clock update
+  const _origUpdateClock = updateClock;
+  function updateClock() {
+    _origUpdateClock();
+    updateLcdClocks();
+  }
+
   // ── Ring gauge helpers ──
   function ringDash(r) { return (2 * Math.PI * r).toFixed(1); }
   function ringOffset(r, pct) { return (2 * Math.PI * r * (1 - Math.min(100, pct) / 100)).toFixed(1); }
@@ -363,9 +458,24 @@
         <!-- Widget content -->
         <div class="wc-body">
           {#if widget.type === 'clock'}
-            <div class="wg-clock">
-              <div class="wg-clock-t">{clockTime}</div>
-              <div class="wg-clock-d">{clockDate}</div>
+            <div class="wg-lcd-wrap">
+              <div class="wg-lcd-left">
+                <!-- Hours -->
+                <div class="wg-lcd-row">
+                  <canvas class="wg-lcd-canvas" data-role="hours" width="90" height="70"></canvas>
+                </div>
+                <!-- Minutes -->
+                <div class="wg-lcd-row">
+                  <canvas class="wg-lcd-canvas" data-role="minutes" width="90" height="70"></canvas>
+                </div>
+              </div>
+              <div class="wg-lcd-right">
+                <div class="wg-lcd-days" id="wg-days-{widget.id}"></div>
+                <div class="wg-lcd-date">
+                  <span class="wg-lcd-datenum" id="wg-datenum-{widget.id}"></span>
+                  <span class="wg-lcd-datemon" id="wg-datemon-{widget.id}"></span>
+                </div>
+              </div>
             </div>
 
           {:else if widget.type === 'sysmon'}
@@ -806,6 +916,55 @@
     cursor: pointer; transition: opacity .15s;
   }
   .ctx-back:hover { opacity: .7; }
+
+  /* ── LCD CLOCK ── */
+  .wg-lcd-wrap {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 4px;
+  }
+  .wg-lcd-left {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 4px; flex: 1;
+  }
+  .wg-lcd-row { display: flex; align-items: center; justify-content: center; }
+  .wg-lcd-canvas { display: block; }
+  .wg-lcd-right {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: space-between;
+    height: 100%; padding: 6px 0;
+  }
+  .wg-lcd-days {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 2px;
+  }
+  :global(.wg-day-item) {
+    font-size: 8px; font-family: 'DM Sans', sans-serif;
+    letter-spacing: .05em; color: var(--text-3);
+    padding: 1px 5px; border-radius: 10px;
+    border: 1px solid transparent;
+    transition: all .2s;
+  }
+  :global(.wg-day-item.today) {
+    color: var(--text-1); font-weight: 600;
+    background: var(--ibtn-bg);
+    border-color: var(--border-hi);
+  }
+  .wg-lcd-date {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 1px;
+  }
+  .wg-lcd-datenum {
+    font-size: 18px; font-weight: 500;
+    color: var(--text-1); font-family: 'DM Sans', sans-serif;
+    line-height: 1;
+  }
+  .wg-lcd-datemon {
+    font-size: 8px; color: var(--text-3);
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: .06em; text-transform: uppercase;
+  }
 
   /* ── RING GAUGES ── */
   .ring-bg { stroke: var(--ibtn-bg); }
