@@ -20,20 +20,26 @@
   let dragging = false;
   let dragOffset = { x: 0, y: 0 };
 
+  function getZoom() {
+    return parseFloat(document.documentElement.style.zoom) || 1;
+  }
+
   function onTitleMouseDown(e) {
     if (e.target.closest('.wf-btn')) return;
     if (win.maximized) return;
     focusWindow(win.id);
     dragging = true;
-    dragOffset = { x: e.clientX - x, y: e.clientY - y };
+    const z = getZoom();
+    dragOffset = { x: e.clientX / z - x, y: e.clientY / z - y };
     window.addEventListener('mousemove', onDrag);
     window.addEventListener('mouseup', onDragEnd);
   }
 
   function onDrag(e) {
     if (!dragging) return;
-    x = e.clientX - dragOffset.x;
-    y = Math.max(0, e.clientY - dragOffset.y);
+    const z = getZoom();
+    x = e.clientX / z - dragOffset.x;
+    y = Math.max(0, e.clientY / z - dragOffset.y);
     updateWindowPos(win.id, { x, y });
   }
 
@@ -51,15 +57,17 @@
     if (win.maximized) return;
     e.stopPropagation();
     resizing = true;
-    resizeStart = { mx: e.clientX, my: e.clientY, w, h };
+    const z = getZoom();
+    resizeStart = { mx: e.clientX / z, my: e.clientY / z, w, h };
     window.addEventListener('mousemove', onResize);
     window.addEventListener('mouseup', onResizeEnd);
   }
 
   function onResize(e) {
     if (!resizing) return;
-    w = Math.max(400, resizeStart.w + (e.clientX - resizeStart.mx));
-    h = Math.max(300, resizeStart.h + (e.clientY - resizeStart.my));
+    const z = getZoom();
+    w = Math.max(400, resizeStart.w + (e.clientX / z - resizeStart.mx));
+    h = Math.max(300, resizeStart.h + (e.clientY / z - resizeStart.my));
     updateWindowPos(win.id, { width: w, height: h });
   }
 
