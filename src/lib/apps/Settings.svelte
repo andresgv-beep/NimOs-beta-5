@@ -216,6 +216,21 @@
                 {/each}
               </div>
             </div>
+
+            <div class="section-label" style="margin-top:16px">Escala de interfaz</div>
+            <div class="setting-row">
+              <span class="setting-label">Escala UI</span>
+              <div class="setting-options">
+                {#each [{v:'auto',l:'Auto'},{v:85,l:'85%'},{v:100,l:'100%'},{v:115,l:'115%'},{v:125,l:'125%'}] as opt}
+                  <button class="opt-btn" class:active={$prefs.uiScale === opt.v} on:click={() => setPref('uiScale', opt.v)}>
+                    {opt.l}
+                  </button>
+                {/each}
+              </div>
+            </div>
+            <div style="font-size:10px;color:var(--text-3);margin-top:4px">
+              Auto detecta tu resolución. Pantalla: {typeof window !== 'undefined' ? `${window.screen.width}×${window.screen.height}` : '—'} · DPR: {typeof window !== 'undefined' ? window.devicePixelRatio?.toFixed(1) : '—'}
+            </div>
           {/if}
 
         {:else if activeView === 'system'}
