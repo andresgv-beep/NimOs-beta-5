@@ -949,9 +949,8 @@
   .wa-item:hover { background: var(--active-bg); color: var(--text-1); }
   .wa-ico { font-size: 16px; flex-shrink: 0; }
   .wa-item-name { font-size: 12px; font-weight: 500; color: var(--text-1); }
-</style>
 
-  /* ── NETWORK ── */
+/* ── NETWORK ── */
   .wg-net-wrap { display:flex; flex-direction:column; gap:8px; flex:1; width:100%; }
   .wg-net-row { display:flex; flex-direction:column; gap:3px; flex:1; }
   .wg-net-label { display:flex; justify-content:space-between; align-items:baseline; }
@@ -971,3 +970,4 @@
   .wg-lcd-date { display:flex; flex-direction:column; align-items:center; gap:1px; }
   .wg-lcd-datenum { font-size:18px; font-weight:500; color:var(--text-1); font-family:'DM Sans',sans-serif; line-height:1; }
   .wg-lcd-datemon { font-size:8px; color:var(--text-3); font-family:'DM Sans',sans-serif; letter-spacing:.06em; text-transform:uppercase; }
+</style>
