@@ -65,10 +65,23 @@ preflight() {
   # Check memory (warn if < 1GB)
   MEM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
   MEM_MB=$((MEM_KB / 1024))
+  MEM_GB=$((MEM_MB / 1024))
   if [[ $MEM_MB -lt 1024 ]]; then
     warn "Only ${MEM_MB}MB RAM detected. NimOS recommends at least 1GB."
   fi
   ok "Memory: ${MEM_MB}MB"
+
+  # Determine storage backend capability
+  # ZFS needs x86_64 + 8GB+ RAM. ARM / low-RAM → mdadm only
+  STORAGE_BACKEND="mdadm"
+  if [[ "$ARCH" == "x86_64" && $MEM_GB -ge 8 ]]; then
+    STORAGE_BACKEND="zfs+mdadm"
+  elif [[ "$ARCH" == "x86_64" && $MEM_GB -ge 4 ]]; then
+    # 4-8GB: offer ZFS but warn about ARC tuning
+    STORAGE_BACKEND="zfs+mdadm"
+    warn "4-8GB RAM: ZFS available but ARC will be limited. Recommended 8GB+."
+  fi
+  ok "Storage backend: $STORAGE_BACKEND"
 
   # Check disk space (need at least 2GB free)
   FREE_KB=$(df / | tail -1 | awk '{print $4}')
@@ -108,6 +121,37 @@ install_deps() {
     avahi-daemon
 
   ok "Core packages installed"
+
+  # ZFS — only on x86_64 with sufficient RAM
+  if [[ "$STORAGE_BACKEND" == "zfs+mdadm" ]]; then
+    log "Installing ZFS (x86_64 + ${MEM_GB}GB RAM detected)..."
+    if apt-get install -y -qq zfsutils-linux 2>/dev/null; then
+      # Load ZFS kernel module
+      modprobe zfs 2>/dev/null || true
+      if command -v zpool &>/dev/null; then
+        ok "ZFS installed and available"
+        # Set ARC max to 50% of RAM (safe default)
+        ARC_MAX=$(( MEM_KB * 1024 / 2 ))
+        if [[ ! -f /etc/modprobe.d/zfs.conf ]] || ! grep -q zfs_arc_max /etc/modprobe.d/zfs.conf 2>/dev/null; then
+          echo "options zfs zfs_arc_max=$ARC_MAX" > /etc/modprobe.d/zfs.conf
+          ok "ZFS ARC max set to $((ARC_MAX / 1024 / 1024 / 1024))GB (50% of RAM)"
+        fi
+      else
+        warn "ZFS package installed but zpool not available — kernel module may need reboot"
+        STORAGE_BACKEND="mdadm"
+      fi
+    else
+      warn "ZFS not available for this system — using mdadm only"
+      STORAGE_BACKEND="mdadm"
+    fi
+  else
+    log "Skipping ZFS (${ARCH}, ${MEM_GB}GB RAM — using mdadm for storage)"
+  fi
+
+  # Save storage backend capability for the daemon
+  mkdir -p "$DATA_DIR/config"
+  echo "{\"storageBackend\":\"$STORAGE_BACKEND\",\"arch\":\"$ARCH\",\"ramGB\":$MEM_GB}" > "$DATA_DIR/config/system-caps.json"
+  ok "System capabilities saved"
 
   # Optional packages (nice to have, don't fail)
   log "Installing optional packages..."
