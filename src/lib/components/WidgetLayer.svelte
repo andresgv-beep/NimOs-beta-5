@@ -170,7 +170,7 @@
       updateNetCharts();
     } catch {}
   }
-  function startPolling() { fetchData(); pollTimer = setInterval(fetchData, 5000); }
+  function startPolling() { fetchData(); pollTimer = setInterval(fetchData, 3000); }
   function stopPolling()  { if (pollTimer) clearInterval(pollTimer); }
 
   // ── Clock ──
