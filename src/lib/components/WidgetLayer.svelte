@@ -258,6 +258,7 @@
     const now = new Date();
     clockTime = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     clockDate = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    if (typeof updateLcdClocks === 'function') updateLcdClocks();
   }
   updateClock();
   const clockInterval = setInterval(updateClock, 1000);
@@ -358,13 +359,6 @@
   onMount(() => {
     setTimeout(updateLcdClocks, 100);
   });
-
-  // Override clock update
-  const _origUpdateClock = updateClock;
-  function updateClock() {
-    _origUpdateClock();
-    updateLcdClocks();
-  }
 
   // ── Ring gauge helpers ──
   function ringDash(r) { return (2 * Math.PI * r).toFixed(1); }
