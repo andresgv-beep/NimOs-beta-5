@@ -18,7 +18,7 @@
 
   const SIZE_PRESETS = {
     clock:   [{ label: 'Pequeño', cols:2, rows:2 }, { label: 'Normal', cols:3, rows:2 }, { label: 'Grande', cols:4, rows:2 }],
-    sysmon:  [{ label: 'Normal',  cols:3, rows:3 }, { label: 'Grande', cols:4, rows:3 }],
+    sysmon:  [{ label: 'Normal', cols:3, rows:3 }, { label: 'Grande', cols:4, rows:3 }, { label: 'Compacto', cols:4, rows:2 }],
     storage: [{ label: 'Normal',  cols:3, rows:2 }, { label: 'Grande', cols:4, rows:3 }],
     network: [{ label: 'Normal',  cols:3, rows:2 }, { label: 'Grande', cols:4, rows:3 }],
   };
@@ -270,6 +270,40 @@
     return (b / 1e6).toFixed(0) + ' MB';
   }
 
+
+  // ── Arc gauge helper ──
+  function describeArc(pct, r, cx, cy) {
+    // C-shape: starts at 210deg, sweeps 240deg (bottom-left to bottom-right)
+    const startAngle = 210;
+    const sweepAngle = 240;
+    const angle = startAngle + (pct / 100) * sweepAngle;
+    const toRad = (d) => (d - 90) * Math.PI / 180;
+    const x1 = cx + r * Math.cos(toRad(startAngle));
+    const y1 = cy + r * Math.sin(toRad(startAngle));
+    const x2 = cx + r * Math.cos(toRad(angle));
+    const y2 = cy + r * Math.sin(toRad(angle));
+    const largeArc = (angle - startAngle) > 180 ? 1 : 0;
+    return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+  }
+
+  function arcColor(pct) {
+    if (pct < 60) return '#4ade80';  // green
+    if (pct < 80) return '#fbbf24';  // amber
+    return '#f87171';                 // red
+  }
+
+  function arcBgPath(r, cx, cy) {
+    const startAngle = 210;
+    const sweepAngle = 240;
+    const toRad = (d) => (d - 90) * Math.PI / 180;
+    const x1 = cx + r * Math.cos(toRad(startAngle));
+    const y1 = cy + r * Math.sin(toRad(startAngle));
+    const endAngle = startAngle + sweepAngle;
+    const x2 = cx + r * Math.cos(toRad(endAngle));
+    const y2 = cy + r * Math.sin(toRad(endAngle));
+    return `M ${x1} ${y1} A ${r} ${r} 0 1 1 ${x2} ${y2}`;
+  }
+
   $: cpuPct   = sysData.cpu?.percent    ?? sysData.cpuPercent ?? 0;
   $: memPct   = sysData.memory?.percent ?? sysData.memPercent ?? 0;
   $: memUsed  = sysData.memory?.used    ?? 0;
@@ -316,21 +350,39 @@
 
           {:else if widget.type === 'sysmon'}
             <div class="wg-header">Sistema</div>
-            <div class="wg-bars">
-              <div class="wg-bar-row">
-                <span class="wg-label">CPU</span>
-                <div class="wg-track"><div class="wg-fill cpu" style="width:{Math.min(100,cpuPct)}%"></div></div>
-                <span class="wg-val">{cpuPct.toFixed(0)}%</span>
+            <div class="wg-gauges">
+              <!-- CPU gauge -->
+              <div class="wg-gauge">
+                <svg viewBox="0 0 100 80" class="wg-arc-svg">
+                  <!-- bg arc -->
+                  <path d={arcBgPath(36, 50, 52)} class="arc-bg" fill="none" stroke-width="8" stroke-linecap="round"/>
+                  <!-- value arc -->
+                  {#if cpuPct > 0}
+                    <path d={describeArc(cpuPct, 36, 50, 52)} fill="none"
+                      stroke={arcColor(cpuPct)} stroke-width="8" stroke-linecap="round"/>
+                  {/if}
+                  <!-- % text -->
+                  <text x="50" y="52" text-anchor="middle" dominant-baseline="middle" class="arc-pct">{cpuPct.toFixed(0)}%</text>
+                  <!-- label -->
+                  <text x="50" y="66" text-anchor="middle" class="arc-label">CPU</text>
+                  {#if cpuTemp}
+                    <text x="50" y="76" text-anchor="middle" class="arc-temp">{cpuTemp}°C</text>
+                  {/if}
+                </svg>
               </div>
-              <div class="wg-bar-row">
-                <span class="wg-label">RAM</span>
-                <div class="wg-track"><div class="wg-fill ram" style="width:{Math.min(100,memPct)}%"></div></div>
-                <span class="wg-val">{memPct.toFixed(0)}%</span>
+              <!-- RAM gauge -->
+              <div class="wg-gauge">
+                <svg viewBox="0 0 100 80" class="wg-arc-svg">
+                  <path d={arcBgPath(36, 50, 52)} class="arc-bg" fill="none" stroke-width="8" stroke-linecap="round"/>
+                  {#if memPct > 0}
+                    <path d={describeArc(memPct, 36, 50, 52)} fill="none"
+                      stroke={arcColor(memPct)} stroke-width="8" stroke-linecap="round"/>
+                  {/if}
+                  <text x="50" y="52" text-anchor="middle" dominant-baseline="middle" class="arc-pct">{memPct.toFixed(0)}%</text>
+                  <text x="50" y="66" text-anchor="middle" class="arc-label">RAM</text>
+                  <text x="50" y="76" text-anchor="middle" class="arc-temp">{fmtBytes(memUsed)}</text>
+                </svg>
               </div>
-            </div>
-            <div class="wg-footer">
-              {#if cpuTemp}<span>🌡 {cpuTemp}°C</span>{/if}
-              <span>{fmtBytes(memUsed)} / {fmtBytes(memTotal)}</span>
             </div>
 
           {:else if widget.type === 'storage'}
@@ -638,7 +690,30 @@
   }
   .ctx-back:hover { opacity: .7; }
 
-  /* ── ADD BUTTON ── */
+  /* ── ARC GAUGES ── */
+  .wg-gauges {
+    display: flex; gap: 8px; flex: 1;
+    align-items: center; justify-content: center;
+  }
+  .wg-gauge { flex: 1; display: flex; align-items: center; justify-content: center; }
+  .wg-arc-svg { width: 100%; max-width: 110px; overflow: visible; }
+  .arc-bg { stroke: var(--ibtn-bg); }
+  :global([data-theme="light"]) .arc-bg { stroke: rgba(0,0,0,0.08); }
+  .arc-pct {
+    font-size: 18px; font-weight: 700;
+    fill: var(--text-1);
+    font-family: 'DM Mono', monospace;
+  }
+  .arc-label {
+    font-size: 9px; font-weight: 600;
+    fill: var(--text-3);
+    text-transform: uppercase; letter-spacing: .06em;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .arc-temp {
+    font-size: 8px; fill: var(--text-3);
+    font-family: 'DM Mono', monospace;
+  }
   .wa-wrap {
     position: fixed; bottom: 68px; right: 16px;
     z-index: 2; pointer-events: auto;
