@@ -407,6 +407,15 @@ func getStoragePoolsGo() []map[string]interface{} {
 		if poolConf == nil {
 			continue
 		}
+
+		// Dispatch by pool type
+		poolType, _ := poolConf["type"].(string)
+		if poolType == "zfs" {
+			pools = append(pools, getZfsPoolInfo(poolConf, primaryPool))
+			continue
+		}
+
+		// Legacy mdadm pool
 		poolName, _ := poolConf["name"].(string)
 		arrayName, _ := poolConf["arrayName"].(string)
 		mountPoint, _ := poolConf["mountPoint"].(string)
@@ -476,6 +485,7 @@ func getStoragePoolsGo() []map[string]interface{} {
 
 		pools = append(pools, map[string]interface{}{
 			"name":               poolName,
+			"type":               "mdadm",
 			"arrayName":          arrayName,
 			"arrayPath":          func() interface{} { if arrayName != "" { return "/dev/" + arrayName }; return nil }(),
 			"mountPoint":         mountPoint,
@@ -1213,6 +1223,12 @@ func handleStorageRoutes(w http.ResponseWriter, r *http.Request) {
 		if session == nil {
 			return
 		}
+
+		// Try ZFS routes first
+		if hasZfs && handleZfsRoutes(w, r, method, urlPath, session) {
+			return
+		}
+
 		switch urlPath {
 		case "/api/storage", "/api/storage/pools":
 			jsonOk(w, getStoragePoolsGo())
@@ -1222,6 +1238,20 @@ func handleStorageRoutes(w http.ResponseWriter, r *http.Request) {
 			jsonOk(w, map[string]interface{}{"pools": getStoragePoolsGo(), "alerts": storageAlertsGo, "hasPool": hasPoolGo()})
 		case "/api/storage/alerts":
 			jsonOk(w, map[string]interface{}{"alerts": storageAlertsGo})
+		case "/api/storage/capabilities":
+			jsonOk(w, map[string]interface{}{
+				"zfs":            hasZfs,
+				"mdadm":          hasMdadm,
+				"arch":           systemArch,
+				"ramGB":          systemRamGB,
+				"recommended":    func() string { if hasZfs { return "zfs" }; return "mdadm" }(),
+				"zfsReason":      func() string {
+					if hasZfs { return "ZFS available" }
+					if systemArch != "x86_64" { return "ARM architecture — mdadm recommended" }
+					if systemRamGB < 4 { return fmt.Sprintf("Insufficient RAM (%dGB) — ZFS needs 4GB+", systemRamGB) }
+					return "ZFS not installed"
+				}(),
+			})
 		case "/api/storage/health":
 			jsonOk(w, checkStorageHealthGo())
 		case "/api/storage/detect-existing":
@@ -1235,15 +1265,26 @@ func handleStorageRoutes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// POST/DELETE routes (need admin)
-	if method == "POST" || method == "DELETE" {
+	if method == "POST" || method == "DELETE" || method == "PUT" {
 		session := requireAdmin(w, r)
 		if session == nil {
 			return
 		}
+
+		// Try ZFS routes first
+		if hasZfs && handleZfsRoutes(w, r, method, urlPath, session) {
+			return
+		}
+
 		body, _ := readBody(r)
 		switch urlPath {
 		case "/api/storage/pool":
-			jsonOk(w, createPoolGo(body))
+			poolType := bodyStr(body, "type")
+			if poolType == "zfs" && hasZfs {
+				jsonOk(w, createPoolZfs(body))
+			} else {
+				jsonOk(w, createPoolGo(body))
+			}
 		case "/api/storage/scan":
 			jsonOk(w, map[string]interface{}{"ok": true, "disks": detectStorageDisksGo()})
 		case "/api/storage/backup":
@@ -1261,7 +1302,24 @@ func handleStorageRoutes(w http.ResponseWriter, r *http.Request) {
 			if name == "" {
 				jsonError(w, 400, "Provide pool name")
 			} else {
-				jsonOk(w, destroyPoolGo(name))
+				// Check pool type to dispatch
+				conf := getStorageConfigFull()
+				confPools, _ := conf["pools"].([]interface{})
+				poolType := "mdadm"
+				for _, p := range confPools {
+					pm, _ := p.(map[string]interface{})
+					if n, _ := pm["name"].(string); n == name {
+						if t, _ := pm["type"].(string); t == "zfs" {
+							poolType = "zfs"
+						}
+						break
+					}
+				}
+				if poolType == "zfs" {
+					jsonOk(w, destroyPoolZfs(name))
+				} else {
+					jsonOk(w, destroyPoolGo(name))
+				}
 			}
 		case "/api/storage/pool/restore":
 			device := bodyStr(body, "device")

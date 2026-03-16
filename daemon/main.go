@@ -820,6 +820,10 @@ func main() {
 	startRateLimitCleanup()
 	startStorageMonitoring()
 
+	// ZFS: auto-import pools and start snapshot scheduler
+	zfsAutoImportOnStartup()
+	startZfsScheduler()
+
 	// Clean up stale socket
 	os.Remove(socketPath)
 

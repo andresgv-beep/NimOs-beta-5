@@ -26,6 +26,10 @@ var (
 	hasDocker   bool
 	hasNvidia   bool
 	hasAmdDrm   bool
+	hasZfs      bool
+	hasMdadm    bool
+	systemArch  string
+	systemRamGB int
 )
 
 func detectHardwareTools() {
@@ -34,6 +38,32 @@ func detectHardwareTools() {
 	_, hasDocker = run("which docker 2>/dev/null")
 	_, hasNvidia = run("which nvidia-smi 2>/dev/null")
 	hasAmdDrm = detectAmdDrm()
+
+	// Storage backends
+	_, hasMdadm = run("which mdadm 2>/dev/null")
+	if zpoolOut, ok := run("which zpool 2>/dev/null"); ok && zpoolOut != "" {
+		// Verify ZFS module is loaded
+		if _, modOk := run("lsmod 2>/dev/null | grep -q '^zfs '"); modOk {
+			hasZfs = true
+		} else {
+			// Try loading it
+			run("modprobe zfs 2>/dev/null || true")
+			_, hasZfs = run("lsmod 2>/dev/null | grep -q '^zfs '")
+		}
+	}
+
+	// System info
+	archOut, _ := run("uname -m 2>/dev/null")
+	systemArch = strings.TrimSpace(archOut)
+	if memInfo, ok := run("awk '/MemTotal/{printf \"%d\", $2/1024/1024}' /proc/meminfo"); ok {
+		systemRamGB = parseIntDefault(strings.TrimSpace(memInfo), 0)
+	}
+
+	if hasZfs {
+		logMsg("ZFS available (arch=%s, ram=%dGB)", systemArch, systemRamGB)
+	} else {
+		logMsg("ZFS not available — mdadm only (arch=%s, ram=%dGB)", systemArch, systemRamGB)
+	}
 }
 
 func detectAmdDrm() bool {
