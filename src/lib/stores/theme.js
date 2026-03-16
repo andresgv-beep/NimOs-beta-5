@@ -13,7 +13,7 @@ const DEFAULTS = {
   glowIntensity: 50, taskbarSize: 'medium', taskbarPosition: 'bottom',
   taskbarMode: 'classic',
   autoHideTaskbar: false, clock24: true, showDesktopIcons: true,
-  textScale: 100, wallpaper: '', showWidgets: true, widgetMode: 'dynamic',
+  textScale: 100, uiScale: 'auto', wallpaper: '', showWidgets: true, widgetMode: 'dynamic',
   widgetScale: 100, pinnedApps: ['files', 'appstore', 'nimsettings'],
   widgetLayout: null,
 };
@@ -27,6 +27,30 @@ export const accentColor = derived(prefs, $p => ACCENT_COLORS[$p.accentColor] ||
 export const pinnedApps = derived(prefs, $p => $p.pinnedApps);
 
 let saveTimeout = null;
+
+// Compute scale factor based on screen resolution
+function computeUiScale(setting) {
+  if (setting !== 'auto' && typeof setting === 'number') return setting / 100;
+
+  // Auto-detect based on logical resolution (CSS pixels, not device pixels)
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const dpr = window.devicePixelRatio || 1;
+
+  // Physical pixels
+  const pw = w * dpr;
+
+  // The UI is designed for ~1920x1080 at 1x DPR.
+  // If the browser already scales via DPR (e.g. 4K at 200% = 1920 CSS px), no extra zoom needed.
+  // Only scale when CSS pixel width is significantly different from 1920.
+  if (w <= 1280) return 0.85;       // Small screens / 720p
+  if (w <= 1600) return 0.95;       // 900p / small 1080p
+  if (w <= 1920) return 1.0;        // Standard 1080p baseline
+  if (w <= 2560) return 1.0;        // 1440p — usually fine at 1x
+  // Ultra-wide or 4K at low/no DPR scaling
+  if (w > 2560 && dpr < 1.5) return 1.25;  // 4K with no OS scaling
+  return 1.0;
+}
 
 // Apply theme to DOM
 function applyToDOM(p) {
@@ -43,6 +67,13 @@ function applyToDOM(p) {
 
   root.style.setProperty('--text-scale', (p.textScale / 100).toString());
   root.style.setProperty('--glow-intensity', (p.glowIntensity / 100).toString());
+
+  // UI Scale — applies CSS zoom to the entire desktop
+  const scale = computeUiScale(p.uiScale);
+  root.style.setProperty('--ui-scale', scale.toString());
+  // CSS zoom is the cleanest way to scale everything without breaking layouts
+  // It scales px values, mouse coordinates, and scrollbars uniformly
+  root.style.zoom = scale;
 }
 
 // Load from server
