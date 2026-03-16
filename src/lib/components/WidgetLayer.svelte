@@ -286,36 +286,13 @@
     [1,1,1,1,0,1,1], // 9
   ];
 
-  function drawLcdDigit(ctx, n, x, y, W, H, T, clrOn, clrOff) {
-    const R = 2;
-    const hw = W - T, hh = (H - T * 3) / 2;
-    const segs = LCD_DIGITS[n] || LCD_DIGITS[0];
-    const shapes = [
-      [x+T+R, y+R,          hw-R*2, T-R*2],   // top
-      [x+W-T+R, y+T+R,      T-R*2,  hh-R*2],  // top-right
-      [x+W-T+R, y+H/2+T/2+R, T-R*2, hh-R*2], // bot-right
-      [x+T+R, y+H-T+R,      hw-R*2, T-R*2],   // bottom
-      [x+R,   y+H/2+T/2+R,  T-R*2,  hh-R*2],  // bot-left
-      [x+R,   y+T+R,        T-R*2,  hh-R*2],  // top-left
-      [x+T+R, y+H/2-T/2+R,  hw-R*2, T-R*2],   // middle
-    ];
-    shapes.forEach(([rx,ry,rw,rh], i) => {
-      ctx.fillStyle = segs[i] ? clrOn : clrOff;
-      ctx.beginPath();
-      ctx.moveTo(rx+R, ry);
-      ctx.lineTo(rx+rw-R, ry); ctx.arcTo(rx+rw, ry, rx+rw, ry+R, R);
-      ctx.lineTo(rx+rw, ry+rh-R); ctx.arcTo(rx+rw, ry+rh, rx+rw-R, ry+rh, R);
-      ctx.lineTo(rx+R, ry+rh); ctx.arcTo(rx, ry+rh, rx, ry+rh-R, R);
-      ctx.lineTo(rx, ry+R); ctx.arcTo(rx, ry, rx+R, ry, R);
-      ctx.closePath(); ctx.fill();
-    });
-  }
-
   function drawLcdPair(canvas, val) {
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
-    const W = 36, H = 62, T = 6, GAP = 8;
-    const cw = (W*2 + GAP + 8), ch = H + 8;
+    // Digit dimensions
+    const DW = 32, DH = 56, S = 5, GAP = 8, PAD = 6;
+    const cw = PAD*2 + DW*2 + GAP;
+    const ch = PAD*2 + DH;
     canvas.width  = cw * dpr;
     canvas.height = ch * dpr;
     canvas.style.width  = cw + 'px';
@@ -323,11 +300,49 @@
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, cw, ch);
+
     const theme = document.documentElement.getAttribute('data-theme') || 'midnight';
-    const clrOn  = theme === 'light' ? 'rgba(20,20,20,0.88)'   : 'rgba(235,235,235,0.92)';
-    const clrOff = theme === 'light' ? 'rgba(0,0,0,0.07)'      : 'rgba(255,255,255,0.07)';
-    drawLcdDigit(ctx, Math.floor(val/10), 4,    4, W, H, T, clrOn, clrOff);
-    drawLcdDigit(ctx, val%10,             4+W+GAP, 4, W, H, T, clrOn, clrOff);
+    const ON  = theme === 'light' ? 'rgba(15,15,15,0.85)'  : 'rgba(240,240,240,0.90)';
+    const OFF = theme === 'light' ? 'rgba(0,0,0,0.06)'     : 'rgba(255,255,255,0.06)';
+
+    function seg(ctx, x, y, isOn, type) {
+      // type: 'h' horizontal, 'v-top' vertical top half, 'v-bot' vertical bottom half
+      ctx.fillStyle = isOn ? ON : OFF;
+      ctx.beginPath();
+      const r = 2;
+      let rx, ry, rw, rh;
+      if (type === 'h') { rx=x; ry=y; rw=DW-S*2; rh=S; }
+      else              { rx=x; ry=y; rw=S; rh=(DH-S*3)/2; }
+      rw = Math.max(rw, 2); rh = Math.max(rh, 2);
+      ctx.moveTo(rx+r, ry);
+      ctx.lineTo(rx+rw-r, ry); ctx.quadraticCurveTo(rx+rw, ry, rx+rw, ry+r);
+      ctx.lineTo(rx+rw, ry+rh-r); ctx.quadraticCurveTo(rx+rw, ry+rh, rx+rw-r, ry+rh);
+      ctx.lineTo(rx+r, ry+rh); ctx.quadraticCurveTo(rx, ry+rh, rx, ry+rh-r);
+      ctx.lineTo(rx, ry+r); ctx.quadraticCurveTo(rx, ry, rx+r, ry);
+      ctx.closePath(); ctx.fill();
+    }
+
+    function drawDigit(n, ox, oy) {
+      const s = LCD_DIGITS[n] || LCD_DIGITS[0];
+      const hh = (DH - S*3) / 2;
+      // a top
+      seg(ctx, ox+S, oy, s[0], 'h');
+      // b top-right
+      seg(ctx, ox+DW-S, oy+S, s[1], 'v');
+      // c bot-right
+      seg(ctx, ox+DW-S, oy+S*2+hh, s[2], 'v');
+      // d bottom
+      seg(ctx, ox+S, oy+DH-S, s[3], 'h');
+      // e bot-left
+      seg(ctx, ox, oy+S*2+hh, s[4], 'v');
+      // f top-left
+      seg(ctx, ox, oy+S, s[5], 'v');
+      // g middle
+      seg(ctx, ox+S, oy+S+hh, s[6], 'h');
+    }
+
+    drawDigit(Math.floor(val/10), PAD, PAD);
+    drawDigit(val%10, PAD + DW + GAP, PAD);
   }
 
   function updateLcdClocks() {
