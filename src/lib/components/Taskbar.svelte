@@ -7,6 +7,8 @@
 
   let showLauncher = false;
 
+  function isIconUrl(icon) { return icon && (icon.startsWith('/') || icon.startsWith('http')); }
+
   // ── Context menu ──
   let ctxMenu = null; // { appId, x, y, win }
 
