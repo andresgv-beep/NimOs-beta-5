@@ -84,6 +84,40 @@ func validatePathWithinShare(sharePath, subPath string) (string, error) {
 	return resolved, nil
 }
 
+// isPathOnMountedPool checks that the path is actually on a mounted pool,
+// not on the root filesystem. This prevents writes to the system disk
+// when a pool is destroyed but shares still exist in the DB.
+func isPathOnMountedPool(path string) bool {
+	if path == "" {
+		return false
+	}
+	// Must be under /nimbus/pools/
+	if !strings.HasPrefix(path, nimbusPoolsDir+"/") {
+		return false
+	}
+	// Check that the path is on a different mount than /
+	out, ok := run(fmt.Sprintf("findmnt -n -o SOURCE --target %s 2>/dev/null", path))
+	if !ok || out == "" {
+		return false
+	}
+	rootSource, _ := run("findmnt -n -o SOURCE --target / 2>/dev/null")
+	// If the path's mount source is the same as /, it's writing to system disk
+	if strings.TrimSpace(out) == strings.TrimSpace(rootSource) {
+		return false
+	}
+	return true
+}
+
+// requireShareMounted checks if a share's pool is mounted, returns error response if not
+func requireShareMounted(w http.ResponseWriter, share map[string]interface{}) bool {
+	sharePath, _ := share["path"].(string)
+	if !isPathOnMountedPool(sharePath) {
+		jsonError(w, 503, "Storage pool not mounted — cannot access files")
+		return false
+	}
+	return true
+}
+
 // ═══════════════════════════════════
 // GET /api/files?share=name&path=/subdir
 // ═══════════════════════════════════
@@ -127,6 +161,9 @@ func filesBrowse(w http.ResponseWriter, r *http.Request, session map[string]inte
 	share, err := dbSharesGet(shareName)
 	if err != nil || share == nil {
 		jsonError(w, 404, "Shared folder not found")
+		return
+	}
+	if !requireShareMounted(w, share) {
 		return
 	}
 
@@ -415,6 +452,9 @@ func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 	share, _ := dbSharesGet(shareName)
 	if share == nil {
 		jsonError(w, 404, "Share not found")
+		return
+	}
+	if !requireShareMounted(w, share) {
 		return
 	}
 	if getSharePermission(session, share) != "rw" {

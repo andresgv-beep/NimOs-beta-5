@@ -900,11 +900,42 @@ func destroyPoolGo(poolName string) map[string]interface{} {
 	mountPoint, _ := poolConf["mountPoint"].(string)
 	arrayName, _ := poolConf["arrayName"].(string)
 
+	// Delete all shares that belong to this pool from the database
+	shares, _ := dbSharesList()
+	for _, s := range shares {
+		sharPool, _ := s["pool"].(string)
+		sharVolume, _ := s["volume"].(string)
+		sharPath, _ := s["path"].(string)
+		sharName, _ := s["name"].(string)
+		if sharPool == poolName || sharVolume == poolName || (mountPoint != "" && strings.HasPrefix(sharPath, mountPoint)) {
+			handleOp(Request{Op: "share.delete", ShareName: sharName})
+			dbSharesDelete(sharName)
+			logMsg("Deleted share '%s' (pool '%s' destroyed)", sharName, poolName)
+		}
+	}
+
 	run(fmt.Sprintf("umount %s 2>/dev/null || true", mountPoint))
 	if arrayName != "" {
 		run(fmt.Sprintf("mdadm --stop /dev/%s 2>/dev/null || true", arrayName))
 	}
-	run(fmt.Sprintf("rm -rf %s 2>/dev/null || true", mountPoint))
+	// Remove mount point directory to prevent orphan writes to system disk
+	if mountPoint != "" && strings.HasPrefix(mountPoint, nimbusPoolsDir) {
+		run(fmt.Sprintf("rm -rf %s 2>/dev/null || true", mountPoint))
+	}
+
+	// Remove from fstab
+	if mountPoint != "" {
+		fstab, err := os.ReadFile("/etc/fstab")
+		if err == nil {
+			var lines []string
+			for _, line := range strings.Split(string(fstab), "\n") {
+				if !strings.Contains(line, mountPoint) {
+					lines = append(lines, line)
+				}
+			}
+			os.WriteFile("/etc/fstab", []byte(strings.Join(lines, "\n")), 0644)
+		}
+	}
 
 	// Remove from config
 	confPools = append(confPools[:poolIdx], confPools[poolIdx+1:]...)
@@ -919,6 +950,7 @@ func destroyPoolGo(poolName string) map[string]interface{} {
 	}
 	saveStorageConfigFull(conf)
 
+	logMsg("Pool '%s' destroyed (shares cleaned, mount point removed)", poolName)
 	return map[string]interface{}{"ok": true, "pool": poolName}
 }
 
