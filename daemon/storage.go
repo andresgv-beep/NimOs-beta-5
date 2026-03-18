@@ -724,7 +724,16 @@ func createPoolGo(body map[string]interface{}) map[string]interface{} {
 }
 
 func createPoolDirs(mountPoint string) {
-	dirs := []string{"docker/containers", "docker/stacks", "docker/volumes", "shares", "system-backup/config", "system-backup/snapshots"}
+	dirs := []string{
+		"docker/containers",
+		"docker/stacks",
+		"docker/volumes",
+		"docker/data",
+		"docker/data/containers",
+		"shares",
+		"system-backup/config",
+		"system-backup/snapshots",
+	}
 	for _, d := range dirs {
 		os.MkdirAll(filepath.Join(mountPoint, d), 0755)
 	}
