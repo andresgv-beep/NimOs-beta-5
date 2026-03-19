@@ -126,6 +126,10 @@
       {#await import('$lib/apps/Settings.svelte') then module}
         <svelte:component this={module.default} />
       {/await}
+    {:else if win.appId === 'nimsettings2'}
+      {#await import('$lib/apps/Settings2.svelte') then module}
+        <svelte:component this={module.default} />
+      {/await}
     {:else if win.appId === 'nimtorrent'}
       {#await import('$lib/apps/NimTorrent.svelte') then module}
         <svelte:component this={module.default} />
