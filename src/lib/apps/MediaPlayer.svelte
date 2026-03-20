@@ -214,7 +214,7 @@
     <div class="mp-inner" on:mousemove={onMouseMove}>
 
       <!-- Titlebar con breadcrumb -->
-      <div class="mp-titlebar">
+      <div class="mp-titlebar" class:hidden={currentFile && isVideo && currentSrc}>
         <span class="mp-tb-title">Media</span>
         <span class="mp-tb-sep">—</span>
         <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -368,7 +368,7 @@
       </div>
 
       <!-- Statusbar -->
-      <div class="mp-statusbar">
+      <div class="mp-statusbar" class:hidden={currentFile && isVideo && currentSrc}>
         <div class="mp-status-dot"></div>
         <span>NimOS Beta 5</span>
       </div>
@@ -421,6 +421,8 @@
   }
 
   /* Titlebar */
+  .mp-titlebar.hidden { display:none; }
+  .mp-statusbar.hidden { display:none; }
   .mp-titlebar {
     display:flex; align-items:center; gap:6px;
     padding:14px 18px 13px;
