@@ -432,29 +432,45 @@ func getStoragePoolsGo() []map[string]interface{} {
 			}
 		}
 
-		// Get disk usage
+		// Check if actually mounted (not just directory on root filesystem)
+		isMounted := false
+		if mountPoint != "" {
+			mountSrc, mountOk := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint))
+			if mountOk && strings.TrimSpace(mountSrc) != "" {
+				// Verify it's not the root filesystem
+				rootSrc, _ := run("findmnt -n -o SOURCE / 2>/dev/null")
+				if strings.TrimSpace(mountSrc) != strings.TrimSpace(rootSrc) {
+					isMounted = true
+				}
+			}
+		}
+
+		// Get disk usage ONLY if actually mounted
 		var total, used, available int64
-		if mountInfo, ok := run(fmt.Sprintf("df -B1 --output=size,used,avail %s 2>/dev/null", mountPoint)); ok {
-			lines := strings.Split(strings.TrimSpace(mountInfo), "\n")
-			if len(lines) > 1 {
-				parts := strings.Fields(lines[1])
-				if len(parts) >= 3 {
-					total = parseInt64(parts[0])
-					used = parseInt64(parts[1])
-					available = parseInt64(parts[2])
+		if isMounted {
+			if mountInfo, ok := run(fmt.Sprintf("df -B1 --output=size,used,avail %s 2>/dev/null", mountPoint)); ok {
+				lines := strings.Split(strings.TrimSpace(mountInfo), "\n")
+				if len(lines) > 1 {
+					parts := strings.Fields(lines[1])
+					if len(parts) >= 3 {
+						total = parseInt64(parts[0])
+						used = parseInt64(parts[1])
+						available = parseInt64(parts[2])
+					}
 				}
 			}
 		}
 
 		poolStatus := "unknown"
-		if raid != nil {
+		if !isMounted {
+			poolStatus = "offline"
+			total = 0
+			used = 0
+			available = 0
+		} else if raid != nil {
 			poolStatus, _ = raid["status"].(string)
 		} else if raidLevel == "single" || arrayName == "" {
-			if total > 0 {
-				poolStatus = "active"
-			} else {
-				poolStatus = "unmounted"
-			}
+			poolStatus = "active"
 		}
 
 		var disks []interface{}
@@ -1205,10 +1221,16 @@ func restorePoolGo(device, poolName string) map[string]interface{} {
 // ═══════════════════════════════════
 
 func startStorageMonitoring() {
+	// On startup: clean orphan mount point directories
+	// If a pool dir exists but nothing is mounted there, remove it
+	// to prevent writes going to the system disk
+	cleanOrphanMountPoints()
+
 	go func() {
 		for {
 			time.Sleep(5 * time.Minute)
 			checkStorageHealthGo()
+			cleanOrphanMountPoints()
 		}
 	}()
 	go func() {
@@ -1219,6 +1241,41 @@ func startStorageMonitoring() {
 			}
 		}
 	}()
+}
+
+func cleanOrphanMountPoints() {
+	conf := getStorageConfigFull()
+	confPools, _ := conf["pools"].([]interface{})
+
+	for _, poolRaw := range confPools {
+		pm, _ := poolRaw.(map[string]interface{})
+		if pm == nil {
+			continue
+		}
+		mountPoint, _ := pm["mountPoint"].(string)
+		if mountPoint == "" || !strings.HasPrefix(mountPoint, nimbusPoolsDir) {
+			continue
+		}
+
+		// Check if directory exists
+		if _, err := os.Stat(mountPoint); err != nil {
+			continue // doesn't exist, nothing to clean
+		}
+
+		// Check if actually mounted
+		mountSrc, ok := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint))
+		if ok && strings.TrimSpace(mountSrc) != "" {
+			rootSrc, _ := run("findmnt -n -o SOURCE / 2>/dev/null")
+			if strings.TrimSpace(mountSrc) != strings.TrimSpace(rootSrc) {
+				continue // properly mounted on a real device
+			}
+		}
+
+		// Directory exists but not mounted on a real device — remove it
+		// to prevent any process from writing to system disk
+		os.RemoveAll(mountPoint)
+		logMsg("Removed orphan mount point %s (pool disk not mounted)", mountPoint)
+	}
 }
 
 // ═══════════════════════════════════
