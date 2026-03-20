@@ -119,7 +119,7 @@
   function toggleMute() { muted = !muted; if (playerEl) playerEl.muted = muted; }
 
   function toggleFullscreen() {
-    const el = document.querySelector('.mp-main');
+    const el = document.querySelector('.mp-inner');
     if (!el) return;
     if (!document.fullscreenElement) el.requestFullscreen().catch(() => {});
     else document.exitFullscreen();
@@ -208,164 +208,180 @@
     </div>
   </div>
 
-  <!-- ── MAIN ── -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="mp-main" on:mousemove={onMouseMove}>
+  <!-- ── INNER WRAP (patrón NimOS) ── -->
+  <div class="mp-inner-wrap">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="mp-inner" on:mousemove={onMouseMove}>
 
-    {#if currentFile && isVideo && currentSrc}
-      <div class="mp-video-wrap">
-        <!-- svelte-ignore a11y_media_has_caption -->
-        <video
-          bind:this={playerEl}
-          src={currentSrc}
-          bind:duration bind:currentTime bind:volume bind:muted
-          on:ended={playNext}
-          on:play={() => playing = true}
-          on:pause={() => playing = false}
-          class="mp-video"
-        ></video>
-      </div>
-    {:else}
-      <div class="mp-browser">
-        <div class="mp-breadcrumb">
+      <!-- Titlebar con breadcrumb -->
+      <div class="mp-titlebar">
+        <span class="mp-tb-title">Media</span>
+        <span class="mp-tb-sep">—</span>
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <span class="mp-bc-root" on:click={() => { currentPath='/'; loadFiles(); }}>{currentShare || '—'}</span>
+        {#each breadcrumbs as crumb, i}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:9px;height:9px;color:var(--text-3);flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <span class="mp-bc-root" on:click={() => { currentPath='/'; loadFiles(); }}>{currentShare || '—'}</span>
-          {#each breadcrumbs as crumb, i}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:10px;height:10px;color:var(--text-3);flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <span class="mp-bc-crumb" on:click={() => { currentPath='/'+breadcrumbs.slice(0,i+1).join('/'); loadFiles(); }}>{crumb}</span>
-          {/each}
-        </div>
-        {#if loading}
-          <div class="mp-loading"><div class="spinner"></div></div>
+          <span class="mp-bc-crumb" on:click={() => { currentPath='/'+breadcrumbs.slice(0,i+1).join('/'); loadFiles(); }}>{crumb}</span>
+        {/each}
+      </div>
+
+      <!-- Contenido: vídeo o browser -->
+      <div class="mp-content">
+        {#if currentFile && isVideo && currentSrc}
+          <div class="mp-video-wrap">
+            <!-- svelte-ignore a11y_media_has_caption -->
+            <video
+              bind:this={playerEl}
+              src={currentSrc}
+              bind:duration bind:currentTime bind:volume bind:muted
+              on:ended={playNext}
+              on:play={() => playing = true}
+              on:pause={() => playing = false}
+              class="mp-video"
+            ></video>
+          </div>
         {:else}
-          <div class="mp-file-list">
-            {#if currentPath !== '/'}
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <div class="mp-file is-dir" on:click={goUp}>
-                <div class="mp-file-ico dir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg></div>
-                <span class="mp-file-name" style="color:var(--text-3)">Volver</span>
+          <div class="mp-browser">
+            {#if loading}
+              <div class="mp-loading"><div class="spinner"></div></div>
+            {:else}
+              <div class="mp-file-list">
+                {#if currentPath !== '/'}
+                  <!-- svelte-ignore a11y_click_events_have_key_events -->
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div class="mp-file is-dir" on:click={goUp}>
+                    <div class="mp-file-ico dir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg></div>
+                    <span class="mp-file-name" style="color:var(--text-3)">Volver</span>
+                  </div>
+                {/if}
+                {#each files as file}
+                  <!-- svelte-ignore a11y_click_events_have_key_events -->
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div class="mp-file"
+                    class:is-media={isMedia(file.name)}
+                    class:is-playing={currentFile?.name === file.name}
+                    class:is-dir={file.isDirectory}
+                    on:click={() => file.isDirectory ? enterFolder(file.name) : isMedia(file.name) ? playFile(file) : null}>
+                    <div class="mp-file-ico"
+                      class:dir={file.isDirectory}
+                      class:video={!file.isDirectory && isVideoFile(file.name)}
+                      class:audio={!file.isDirectory && !isVideoFile(file.name) && isMedia(file.name)}>
+                      {#if file.isDirectory}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                      {:else if isVideoFile(file.name)}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+                      {:else if isMedia(file.name)}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                      {:else}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      {/if}
+                    </div>
+                    <span class="mp-file-name">{file.name}</span>
+                    <span class="mp-file-size">{file.isDirectory ? '' : fmtSize(file.size)}</span>
+                  </div>
+                {/each}
+                {#if files.length === 0}<div class="mp-empty">Carpeta vacía</div>{/if}
               </div>
             {/if}
-            {#each files as file}
+          </div>
+
+          {#if currentSrc && !isVideo}
+            <!-- svelte-ignore a11y_media_has_caption -->
+            <audio bind:this={playerEl} src={currentSrc}
+              bind:duration bind:currentTime bind:volume bind:muted
+              on:ended={playNext}
+              on:play={() => playing = true}
+              on:pause={() => playing = false}></audio>
+          {/if}
+        {/if}
+
+        <!-- Controles flotantes -->
+        {#if currentFile}
+          <div class="mp-controls" class:hidden={!controlsVisible}>
+            <div class="mp-progress-row">
+              <span class="mp-time">{fmtTime(currentTime)}</span>
               <!-- svelte-ignore a11y_click_events_have_key_events -->
               <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <div class="mp-file"
-                class:is-media={isMedia(file.name)}
-                class:is-playing={currentFile?.name === file.name}
-                class:is-dir={file.isDirectory}
-                on:click={() => file.isDirectory ? enterFolder(file.name) : isMedia(file.name) ? playFile(file) : null}>
-                <div class="mp-file-ico"
-                  class:dir={file.isDirectory}
-                  class:video={!file.isDirectory && isVideoFile(file.name)}
-                  class:audio={!file.isDirectory && !isVideoFile(file.name) && isMedia(file.name)}>
-                  {#if file.isDirectory}
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                  {:else if isVideoFile(file.name)}
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
-                  {:else if isMedia(file.name)}
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+              <div class="mp-progress" on:click={seek}>
+                <div class="mp-progress-fill" style="width:{duration ? (currentTime/duration)*100 : 0}%">
+                  <div class="mp-progress-thumb"></div>
+                </div>
+              </div>
+              <span class="mp-time">{fmtTime(duration)}</span>
+            </div>
+            <div class="mp-btns-row">
+              <div class="mp-now">
+                <div class="mp-now-art" class:video={isVideo}>
+                  {#if isVideo}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
                   {:else}
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
                   {/if}
                 </div>
-                <span class="mp-file-name">{file.name}</span>
-                <span class="mp-file-size">{file.isDirectory ? '' : fmtSize(file.size)}</span>
+                <div class="mp-now-info">
+                  <div class="mp-now-name">{currentFile.name}</div>
+                  <div class="mp-now-path">{currentShare}{currentPath === '/' ? '' : currentPath}</div>
+                </div>
               </div>
-            {/each}
-            {#if files.length === 0}<div class="mp-empty">Carpeta vacía</div>{/if}
+              <div class="mp-transport">
+                <button class="mp-btn" on:click={playPrev}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+                </button>
+                <button class="mp-btn play" on:click={togglePlay}>
+                  {#if playing}
+                    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+                  {:else}
+                    <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  {/if}
+                </button>
+                <button class="mp-btn" on:click={playNext}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                </button>
+              </div>
+              <div class="mp-right">
+                <div class="mp-vol-wrap">
+                  <button class="mp-btn small" on:click={toggleMute}>
+                    {#if muted || volume === 0}
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                    {:else if volume < 0.5}
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                    {:else}
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                    {/if}
+                  </button>
+                  <!-- svelte-ignore a11y_click_events_have_key_events -->
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div class="mp-vol-track" on:click={setVol}>
+                    <div class="mp-vol-fill" style="width:{muted ? 0 : volume*100}%"></div>
+                  </div>
+                </div>
+                <button class="mp-btn fullscreen" on:click={toggleFullscreen} title="Pantalla completa">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                </button>
+              </div>
+            </div>
           </div>
         {/if}
       </div>
-      {#if currentSrc && !isVideo}
-        <!-- svelte-ignore a11y_media_has_caption -->
-        <audio bind:this={playerEl} src={currentSrc}
-          bind:duration bind:currentTime bind:volume bind:muted
-          on:ended={playNext}
-          on:play={() => playing = true}
-          on:pause={() => playing = false}></audio>
-      {/if}
-    {/if}
 
-    <!-- Controles flotantes -->
-    {#if currentFile}
-      <div class="mp-controls" class:hidden={!controlsVisible}>
-        <div class="mp-progress-row">
-          <span class="mp-time">{fmtTime(currentTime)}</span>
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="mp-progress" on:click={seek}>
-            <div class="mp-progress-fill" style="width:{duration ? (currentTime/duration)*100 : 0}%">
-              <div class="mp-progress-thumb"></div>
-            </div>
-          </div>
-          <span class="mp-time">{fmtTime(duration)}</span>
-        </div>
-        <div class="mp-btns-row">
-          <div class="mp-now">
-            <div class="mp-now-art" class:video={isVideo}>
-              {#if isVideo}
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
-              {:else}
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-              {/if}
-            </div>
-            <div class="mp-now-info">
-              <div class="mp-now-name">{currentFile.name}</div>
-              <div class="mp-now-path">{currentShare}{currentPath === '/' ? '' : currentPath}</div>
-            </div>
-          </div>
-          <div class="mp-transport">
-            <button class="mp-btn" on:click={playPrev}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
-            </button>
-            <button class="mp-btn play" on:click={togglePlay}>
-              {#if playing}
-                <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-              {:else}
-                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              {/if}
-            </button>
-            <button class="mp-btn" on:click={playNext}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
-            </button>
-          </div>
-          <div class="mp-right">
-            <div class="mp-vol-wrap">
-              <button class="mp-btn small" on:click={toggleMute}>
-                {#if muted || volume === 0}
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-                {:else if volume < 0.5}
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-                {:else}
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-                {/if}
-              </button>
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <div class="mp-vol-track" on:click={setVol}>
-                <div class="mp-vol-fill" style="width:{muted ? 0 : volume*100}%"></div>
-              </div>
-            </div>
-            <button class="mp-btn fullscreen" on:click={toggleFullscreen} title="Pantalla completa">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-            </button>
-          </div>
-        </div>
+      <!-- Statusbar -->
+      <div class="mp-statusbar">
+        <div class="mp-status-dot"></div>
+        <span>NimOS Beta 5</span>
       </div>
-    {/if}
+    </div>
   </div>
 </div>
 
 <style>
   .mp-root { width:100%; height:100%; display:flex; overflow:hidden; font-family:'Inter',-apple-system,sans-serif; color:var(--text-1); }
 
-  /* Sidebar */
-  .mp-sidebar { width:200px; flex-shrink:0; padding:12px 8px; background:var(--bg-sidebar); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
-  .mp-sidebar-header { display:flex; align-items:center; gap:8px; padding:16px 10px 14px; color:var(--text-1); }
+  /* ── Sidebar ── */
+  .mp-sidebar { width:200px; flex-shrink:0; padding:12px 8px; background:var(--bg-sidebar); display:flex; flex-direction:column; overflow:hidden; }
+  .mp-sidebar-header { display:flex; align-items:center; gap:8px; padding:28px 10px 14px; color:var(--text-1); }
   .mp-title { font-size:15px; font-weight:600; }
   .mp-section-header { display:flex; align-items:center; justify-content:space-between; padding:4px 8px; }
   .mp-section-label { font-size:9px; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:.08em; }
@@ -396,18 +412,39 @@
   .mp-share:hover { background:rgba(128,128,128,0.08); color:var(--text-1); }
   .mp-share.active { background:var(--active-bg); color:var(--text-1); }
 
-  /* Main */
-  .mp-main { flex:1; position:relative; overflow:hidden; background:#0d0c1e; }
+  /* ── Inner wrap — patrón NimOS ── */
+  .mp-inner-wrap { flex:1; padding:8px; display:flex; }
+  .mp-inner {
+    flex:1; border-radius:10px; border:1px solid var(--border);
+    background:var(--bg-inner); display:flex; flex-direction:column;
+    overflow:hidden; position:relative;
+  }
+
+  /* Titlebar */
+  .mp-titlebar {
+    display:flex; align-items:center; gap:6px;
+    padding:14px 18px 13px;
+    background:var(--bg-bar); flex-shrink:0;
+    border-bottom:1px solid var(--border);
+  }
+  .mp-tb-title { font-size:13px; font-weight:600; color:var(--text-1); }
+  .mp-tb-sep { font-size:11px; color:var(--text-3); }
+  .mp-bc-root { font-size:11px; color:var(--text-3); cursor:pointer; transition:color .1s; font-family:'DM Mono',monospace; }
+  .mp-bc-root:hover { color:var(--text-2); }
+  .mp-bc-crumb { font-size:10px; color:var(--text-3); cursor:pointer; font-family:'DM Mono',monospace; transition:color .1s; }
+  .mp-bc-crumb:hover { color:var(--text-2); }
+
+  /* Content area */
+  .mp-content { flex:1; position:relative; overflow:hidden; }
+
+  /* Video */
   .mp-video-wrap { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:#000; }
   .mp-video { width:100%; height:100%; object-fit:contain; }
-  .mp-browser { position:absolute; inset:0; overflow-y:auto; padding:16px 20px 80px; background:var(--bg-inner); }
+
+  /* Browser */
+  .mp-browser { position:absolute; inset:0; overflow-y:auto; padding:14px 18px 80px; }
   .mp-browser::-webkit-scrollbar { width:3px; }
   .mp-browser::-webkit-scrollbar-thumb { background:rgba(128,128,128,0.15); border-radius:2px; }
-  .mp-breadcrumb { display:flex; align-items:center; gap:4px; margin-bottom:12px; font-size:11px; }
-  .mp-bc-root { color:var(--text-2); cursor:pointer; font-weight:500; transition:color .1s; }
-  .mp-bc-root:hover { color:var(--text-1); }
-  .mp-bc-crumb { color:var(--text-3); cursor:pointer; font-family:'DM Mono',monospace; font-size:10px; transition:color .1s; }
-  .mp-bc-crumb:hover { color:var(--text-2); }
   .mp-file-list { display:flex; flex-direction:column; gap:1px; }
   .mp-file { display:flex; align-items:center; gap:10px; padding:7px 8px; border-radius:7px; font-size:12px; color:var(--text-2); transition:all .1s; }
   .mp-file.is-dir { cursor:pointer; } .mp-file.is-dir:hover { background:rgba(128,128,128,0.06); color:var(--text-1); }
@@ -426,7 +463,7 @@
   @keyframes spin { to{transform:rotate(360deg)} }
 
   /* Controles flotantes */
-  .mp-controls { position:absolute; bottom:0; left:0; right:0; padding:20px 20px 16px; background:linear-gradient(to top,rgba(0,0,0,0.88) 0%,rgba(0,0,0,0.45) 60%,transparent 100%); display:flex; flex-direction:column; gap:10px; transition:opacity .35s ease; z-index:10; }
+  .mp-controls { position:absolute; bottom:0; left:0; right:0; padding:20px 20px 16px; background:linear-gradient(to top,rgba(0,0,0,0.88) 0%,rgba(0,0,0,0.45) 60%,transparent 100%); display:flex; flex-direction:column; gap:10px; transition:opacity .35s ease; z-index:10; border-radius:0 0 10px 10px; }
   .mp-controls.hidden { opacity:0; pointer-events:none; }
   .mp-progress-row { display:flex; align-items:center; gap:8px; }
   .mp-time { font-size:10px; color:rgba(255,255,255,0.55); font-family:'DM Mono',monospace; min-width:32px; text-align:center; }
@@ -459,4 +496,8 @@
   .mp-vol-track { width:68px; height:3px; border-radius:2px; background:rgba(255,255,255,0.15); cursor:pointer; transition:height .15s; }
   .mp-vol-track:hover { height:5px; }
   .mp-vol-fill { height:100%; border-radius:2px; background:rgba(255,255,255,0.7); }
+
+  /* Statusbar */
+  .mp-statusbar { display:flex; align-items:center; gap:10px; padding:8px 16px; border-top:1px solid var(--border); background:var(--bg-bar); flex-shrink:0; font-size:10px; color:var(--text-3); border-radius:0 0 10px 10px; font-family:'DM Mono',monospace; }
+  .mp-status-dot { width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 4px rgba(74,222,128,0.6); }
 </style>
