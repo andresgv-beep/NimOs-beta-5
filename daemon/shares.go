@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -137,9 +138,8 @@ func sharesCreateHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if !daemonResult.Ok {
-		// Fallback: create directory manually
-		os.MkdirAll(folderPath, 0770)
-		logMsg("share.create: daemon unavailable, created %s without enforcement", safeName)
+		jsonError(w, 500, fmt.Sprintf("Failed to create share: %s", daemonResult.Error))
+		return
 	}
 
 	// Register in DB
