@@ -193,19 +193,6 @@
       {/if}
     </div>
 
-    <div class="mp-sb-browser">
-      <div class="mp-section-header" style="margin-top:10px">
-        <span class="mp-section-label">Explorar</span>
-      </div>
-      {#each shares as s}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="mp-share" class:active={currentShare === s.name} on:click={() => selectShare(s.name)}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          {s.displayName || s.name}
-        </div>
-      {/each}
-    </div>
   </div>
 
   <!-- ── INNER WRAP (patrón NimOS) ── -->
@@ -228,7 +215,7 @@
         {/each}
       </div>
 
-      <!-- Contenido: vídeo o browser -->
+      <!-- Contenido: vídeo, audio o pantalla vacía -->
       <div class="mp-content">
         {#if currentFile && isVideo && currentSrc}
           <div class="mp-video-wrap">
@@ -243,59 +230,30 @@
               class="mp-video"
             ></video>
           </div>
-        {:else}
-          <div class="mp-browser">
-            {#if loading}
-              <div class="mp-loading"><div class="spinner"></div></div>
-            {:else}
-              <div class="mp-file-list">
-                {#if currentPath !== '/'}
-                  <!-- svelte-ignore a11y_click_events_have_key_events -->
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
-                  <div class="mp-file is-dir" on:click={goUp}>
-                    <div class="mp-file-ico dir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg></div>
-                    <span class="mp-file-name" style="color:var(--text-3)">Volver</span>
-                  </div>
-                {/if}
-                {#each files as file}
-                  <!-- svelte-ignore a11y_click_events_have_key_events -->
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
-                  <div class="mp-file"
-                    class:is-media={isMedia(file.name)}
-                    class:is-playing={currentFile?.name === file.name}
-                    class:is-dir={file.isDirectory}
-                    on:click={() => file.isDirectory ? enterFolder(file.name) : isMedia(file.name) ? playFile(file) : null}>
-                    <div class="mp-file-ico"
-                      class:dir={file.isDirectory}
-                      class:video={!file.isDirectory && isVideoFile(file.name)}
-                      class:audio={!file.isDirectory && !isVideoFile(file.name) && isMedia(file.name)}>
-                      {#if file.isDirectory}
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                      {:else if isVideoFile(file.name)}
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
-                      {:else if isMedia(file.name)}
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                      {:else}
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                      {/if}
-                    </div>
-                    <span class="mp-file-name">{file.name}</span>
-                    <span class="mp-file-size">{file.isDirectory ? '' : fmtSize(file.size)}</span>
-                  </div>
-                {/each}
-                {#if files.length === 0}<div class="mp-empty">Carpeta vacía</div>{/if}
-              </div>
-            {/if}
+        {:else if currentFile && !isVideo && currentSrc}
+          <!-- Audio: pantalla de now playing -->
+          <div class="mp-audio-screen">
+            <div class="mp-audio-art">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            </div>
+            <div class="mp-audio-name">{currentFile.name}</div>
+            <div class="mp-audio-path">{currentShare}</div>
           </div>
-
-          {#if currentSrc && !isVideo}
-            <!-- svelte-ignore a11y_media_has_caption -->
-            <audio bind:this={playerEl} src={currentSrc}
-              bind:duration bind:currentTime bind:volume bind:muted
-              on:ended={playNext}
-              on:play={() => playing = true}
-              on:pause={() => playing = false}></audio>
-          {/if}
+          <!-- svelte-ignore a11y_media_has_caption -->
+          <audio bind:this={playerEl} src={currentSrc}
+            bind:duration bind:currentTime bind:volume bind:muted
+            on:ended={playNext}
+            on:play={() => playing = true}
+            on:pause={() => playing = false}></audio>
+        {:else}
+          <!-- Empty state -->
+          <div class="mp-empty-screen">
+            <div class="mp-empty-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </div>
+            <div class="mp-empty-title">Sin reproducción</div>
+            <div class="mp-empty-desc">Usa el botón + para añadir archivos a la cola</div>
+          </div>
         {/if}
 
         <!-- Controles flotantes -->
@@ -406,11 +364,7 @@
   .mp-pl-empty { display:flex; flex-direction:column; align-items:center; gap:8px; padding:24px 8px; opacity:.4; }
   .mp-pl-empty svg { width:22px; height:22px; }
   .mp-pl-empty span { font-size:10px; color:var(--text-3); text-align:center; }
-  .mp-sb-browser { display:flex; flex-direction:column; border-top:1px solid var(--border); padding-top:4px; }
-  .mp-share { display:flex; align-items:center; gap:7px; padding:6px 8px; border-radius:7px; font-size:12px; color:var(--text-2); cursor:pointer; transition:all .12s; }
-  .mp-share svg { width:13px; height:13px; flex-shrink:0; opacity:.6; }
-  .mp-share:hover { background:rgba(128,128,128,0.08); color:var(--text-1); }
-  .mp-share.active { background:var(--active-bg); color:var(--text-1); }
+
 
   /* ── Inner wrap — patrón NimOS ── */
   .mp-inner-wrap { flex:1; padding:8px; display:flex; }
@@ -443,23 +397,19 @@
   .mp-video-wrap { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:#000; }
   .mp-video { width:100%; height:100%; object-fit:contain; }
 
-  /* Browser */
-  .mp-browser { position:absolute; inset:0; overflow-y:auto; padding:14px 18px 80px; }
-  .mp-browser::-webkit-scrollbar { width:3px; }
-  .mp-browser::-webkit-scrollbar-thumb { background:rgba(128,128,128,0.15); border-radius:2px; }
-  .mp-file-list { display:flex; flex-direction:column; gap:1px; }
-  .mp-file { display:flex; align-items:center; gap:10px; padding:7px 8px; border-radius:7px; font-size:12px; color:var(--text-2); transition:all .1s; }
-  .mp-file.is-dir { cursor:pointer; } .mp-file.is-dir:hover { background:rgba(128,128,128,0.06); color:var(--text-1); }
-  .mp-file.is-media { cursor:pointer; } .mp-file.is-media:hover { background:var(--active-bg); color:var(--text-1); }
-  .mp-file.is-playing { background:var(--active-bg); color:var(--accent); }
-  .mp-file-ico { width:28px; height:28px; border-radius:6px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.05); }
-  .mp-file-ico svg { width:14px; height:14px; color:var(--text-3); }
-  .mp-file-ico.dir   { background:rgba(251,191,36,0.10); } .mp-file-ico.dir svg   { color:var(--amber); }
-  .mp-file-ico.video { background:rgba(124,111,255,0.10); } .mp-file-ico.video svg { color:var(--accent); }
-  .mp-file-ico.audio { background:rgba(74,222,128,0.10);  } .mp-file-ico.audio svg { color:var(--green); }
-  .mp-file-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .mp-file-size { font-size:10px; color:var(--text-3); font-family:'DM Mono',monospace; flex-shrink:0; }
-  .mp-empty { font-size:11px; color:var(--text-3); padding:24px 0; text-align:center; }
+  /* Pantallas de contenido */
+  .mp-empty-screen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
+  .mp-empty-icon { width:64px; height:64px; border-radius:16px; background:rgba(124,111,255,0.08); border:1px solid rgba(124,111,255,0.12); display:flex; align-items:center; justify-content:center; }
+  .mp-empty-icon svg { width:28px; height:28px; color:var(--accent); opacity:.4; }
+  .mp-empty-title { font-size:13px; font-weight:600; color:var(--text-2); }
+  .mp-empty-desc { font-size:11px; color:var(--text-3); }
+
+  .mp-audio-screen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding-bottom:80px; }
+  .mp-audio-art { width:120px; height:120px; border-radius:20px; background:rgba(124,111,255,0.12); border:1px solid rgba(124,111,255,0.20); display:flex; align-items:center; justify-content:center; }
+  .mp-audio-art svg { width:52px; height:52px; color:var(--accent); opacity:.6; }
+  .mp-audio-name { font-size:14px; font-weight:600; color:var(--text-1); max-width:400px; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mp-audio-path { font-size:10px; color:var(--text-3); font-family:'DM Mono',monospace; }
+
   .mp-loading { display:flex; justify-content:center; padding:30px; }
   .spinner { width:20px; height:20px; border-radius:50%; border:2px solid rgba(255,255,255,0.08); border-top-color:var(--accent); animation:spin .7s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
