@@ -2,14 +2,25 @@
   import { onMount } from 'svelte';
   import { APP_META } from '$lib/apps.js';
   import { openWindow } from '$lib/stores/windows.js';
-  import { getToken } from '$lib/stores/auth.js';
+  import { getToken, user } from '$lib/stores/auth.js';
 
   export let visible = false;
 
   const systemApps = Object.entries(APP_META).map(([id, meta]) => ({ id, ...meta, isSystem: true }));
   let dockerApps = [];
+  let allowedApps = null; // null = not loaded yet, 'all' = admin, string[] = user apps
 
-  $: if (visible) loadDockerApps();
+  $: if (visible) { loadDockerApps(); loadMyApps(); }
+
+  async function loadMyApps() {
+    try {
+      const res = await fetch('/api/my-apps', {
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
+      const data = await res.json();
+      allowedApps = data.apps; // 'all' for admin, string[] for users
+    } catch { allowedApps = 'all'; }
+  }
 
   async function loadDockerApps() {
     try {
@@ -31,12 +42,18 @@
     } catch {}
   }
 
+  function canAccess(appId) {
+    if (allowedApps === 'all') return true;
+    if (Array.isArray(allowedApps)) return allowedApps.includes(appId);
+    return true; // Loading, show all temporarily
+  }
+
   $: allApps = (() => {
     const seen = new Set();
     return [...systemApps, ...dockerApps].filter(app => {
       if (seen.has(app.id)) return false;
       seen.add(app.id);
-      return true;
+      return canAccess(app.id);
     });
   })();
 
