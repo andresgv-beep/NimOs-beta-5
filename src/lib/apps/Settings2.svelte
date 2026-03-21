@@ -62,6 +62,42 @@
 
   // ── Appearance ──
   let appearanceTab = 'tema';
+
+  // Wallpapers built-in
+  const BUILTIN_WALLPAPERS = [
+    '/wallpapers/nim_wallpaper_01.jpeg',
+    '/wallpapers/nim_wallpaper_02.png',
+  ];
+
+  // Wallpapers añadidos por el usuario (guardados en prefs)
+  $: userWallpapers = $prefs.userWallpapers || [];
+  $: allWallpapers = [...BUILTIN_WALLPAPERS, ...userWallpapers];
+  $: currentWallpaper = $prefs.wallpaper || '';
+
+  function selectWallpaper(url) {
+    setPref('wallpaper', url === currentWallpaper ? '' : url);
+  }
+
+  function addWallpaper() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const url = ev.target.result;
+        const existing = $prefs.userWallpapers || [];
+        if (!existing.includes(url)) {
+          setPref('userWallpapers', [...existing, url]);
+        }
+        setPref('wallpaper', url);
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  }
   $: currentTheme  = $prefs.theme       || 'midnight';
   $: currentAccent = $prefs.accentColor || 'orange';
   const themeLabels = { midnight: 'Midnight', dark: 'Dark', light: 'Light' };
@@ -419,6 +455,44 @@
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div class="accent-dot" class:active={currentAccent === name} style="background:{color}" on:click={() => setPref('accentColor', name)} title={name}></div>
+              {/each}
+            </div>
+
+            <div class="wall-header" style="margin-top:24px">
+              <div class="section-label" style="margin:0">Fondo de escritorio</div>
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <button class="wall-add-btn" on:click={addWallpaper}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Añadir imagen...
+              </button>
+            </div>
+            <div class="wall-grid">
+              <!-- Ninguno -->
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div class="wall-item" class:active={!currentWallpaper} on:click={() => selectWallpaper('')}>
+                <div class="wall-none">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:20px;height:20px;opacity:.4"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+                </div>
+                {#if !currentWallpaper}
+                  <div class="wall-check">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                {/if}
+                <div class="wall-label">Ninguno</div>
+              </div>
+              {#each allWallpapers as wp}
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div class="wall-item" class:active={currentWallpaper === wp} on:click={() => selectWallpaper(wp)}>
+                  <img src={wp} alt="wallpaper" class="wall-thumb" loading="lazy" />
+                  {#if currentWallpaper === wp}
+                    <div class="wall-check">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                  {/if}
+                </div>
               {/each}
             </div>
 
@@ -878,4 +952,55 @@
   .opt-btn.active { background:var(--active-bg); border-color:var(--border-hi); color:var(--text-1); }
   .opt-btn:disabled { opacity:.4; cursor:not-allowed; }
   .tb-tabs { margin-left:auto; }
+
+  /* ── Wallpapers ── */
+  .wall-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .wall-add-btn {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:5px 10px; border-radius:6px;
+    border:1px solid var(--border); background:var(--ibtn-bg);
+    color:var(--text-2); font-size:11px; font-weight:500;
+    cursor:pointer; font-family:inherit; transition:all .15s;
+  }
+  .wall-add-btn svg { width:10px; height:10px; }
+  .wall-add-btn:hover { color:var(--text-1); border-color:var(--border-hi); }
+
+  .wall-grid {
+    display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+    max-height:280px; overflow-y:auto;
+    padding-right:4px;
+  }
+  .wall-grid::-webkit-scrollbar { width:3px; }
+  .wall-grid::-webkit-scrollbar-thumb { background:rgba(128,128,128,0.15); border-radius:2px; }
+
+  .wall-item {
+    position:relative; border-radius:8px; overflow:hidden;
+    aspect-ratio:16/9; cursor:pointer;
+    border:2px solid transparent;
+    transition:all .15s;
+  }
+  .wall-item:hover { border-color:rgba(255,255,255,0.2); }
+  .wall-item.active { border-color:var(--accent); }
+
+  .wall-thumb { width:100%; height:100%; object-fit:cover; display:block; }
+
+  .wall-none {
+    width:100%; height:100%;
+    background:rgba(255,255,255,0.04);
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  .wall-check {
+    position:absolute; bottom:5px; right:5px;
+    width:20px; height:20px; border-radius:50%;
+    background:var(--accent);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,0.4);
+  }
+  .wall-check svg { width:10px; height:10px; color:#fff; }
+
+  .wall-label {
+    position:absolute; bottom:5px; left:6px;
+    font-size:9px; color:var(--text-3); font-weight:500;
+  }
 </style>
