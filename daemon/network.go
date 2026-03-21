@@ -67,7 +67,7 @@ func writeJSONConfig(path string, conf interface{}) {
 // ═══════════════════════════════════
 
 func handleDdnsRoutes(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil {
 		return
 	}
@@ -154,7 +154,7 @@ func ddnsUpdateGo(cfg map[string]interface{}) map[string]interface{} {
 // ═══════════════════════════════════
 
 func handleRemoteAccessRoutes(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil {
 		return
 	}
@@ -402,7 +402,7 @@ func getRemoteAccessStatusGo(cfg map[string]interface{}) map[string]interface{} 
 // ═══════════════════════════════════
 
 func handleSshRoutes(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil { return }
 	switch {
 	case r.URL.Path == "/api/ssh/status" && r.Method == "GET":
@@ -425,7 +425,7 @@ func handleSshRoutes(w http.ResponseWriter, r *http.Request) {
 // ═══════════════════════════════════
 
 func handleFtpRoutes(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil { return }
 	switch {
 	case r.URL.Path == "/api/ftp/status" && r.Method == "GET":
@@ -449,7 +449,7 @@ func handleFtpRoutes(w http.ResponseWriter, r *http.Request) {
 // ═══════════════════════════════════
 
 func handleNfsRoutes(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil { return }
 	switch {
 	case r.URL.Path == "/api/nfs/status" && r.Method == "GET":
@@ -474,7 +474,7 @@ func handleNfsRoutes(w http.ResponseWriter, r *http.Request) {
 // ═══════════════════════════════════
 
 func handleDnsRoutes(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil { return }
 	if r.URL.Path == "/api/dns/status" && r.Method == "GET" {
 		servers := []string{}
@@ -496,7 +496,7 @@ func handleDnsRoutes(w http.ResponseWriter, r *http.Request) {
 // ═══════════════════════════════════
 
 func handleCertsRoutes(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil { return }
 	urlPath := r.URL.Path
 	method := r.Method
@@ -555,7 +555,7 @@ func handleCertsRoutes(w http.ResponseWriter, r *http.Request) {
 // ═══════════════════════════════════
 
 func handleProxyRoutes(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil { return }
 	urlPath := r.URL.Path
 	method := r.Method
@@ -589,7 +589,7 @@ func handleProxyRoutes(w http.ResponseWriter, r *http.Request) {
 // ═══════════════════════════════════
 
 func handlePortalRoutes(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil { return }
 	if r.URL.Path == "/api/portal/status" && r.Method == "GET" {
 		jsonOk(w, map[string]interface{}{"httpPort": 5000, "httpsEnabled": false})
@@ -610,7 +610,7 @@ func handlePortalRoutes(w http.ResponseWriter, r *http.Request) {
 // ═══════════════════════════════════
 
 func handleWebdavRoutes(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil { return }
 	urlPath := r.URL.Path
 	method := r.Method
@@ -640,7 +640,7 @@ func handleWebdavRoutes(w http.ResponseWriter, r *http.Request) {
 // ═══════════════════════════════════
 
 func handleSmbRoutes(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil { return }
 	urlPath := r.URL.Path
 	method := r.Method
@@ -714,7 +714,7 @@ func handleSmbRoutes(w http.ResponseWriter, r *http.Request) {
 // ═══════════════════════════════════
 
 func handleFirewallRoutes(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil { return }
 	urlPath := r.URL.Path
 

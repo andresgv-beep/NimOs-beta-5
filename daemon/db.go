@@ -95,6 +95,16 @@ func createTables() error {
 		FOREIGN KEY (share_name) REFERENCES shares(name) ON DELETE CASCADE
 	);
 
+	CREATE TABLE IF NOT EXISTS user_app_access (
+		username     TEXT NOT NULL,
+		app_id       TEXT NOT NULL,
+		permission   TEXT NOT NULL DEFAULT 'use',
+		granted_by   TEXT NOT NULL,
+		granted_at   TEXT NOT NULL,
+		PRIMARY KEY (username, app_id),
+		FOREIGN KEY (username) REFERENCES users(username) ON DELETE CASCADE
+	);
+
 	CREATE TABLE IF NOT EXISTS preferences (
 		username     TEXT NOT NULL,
 		key          TEXT NOT NULL,
@@ -595,6 +605,130 @@ func dbPrefsSet(username, key, value string) error {
 
 func dbPrefsDelete(username, key string) error {
 	_, err := db.Exec(`DELETE FROM preferences WHERE username = ? AND key = ?`, username, key)
+	return err
+}
+
+// ═══════════════════════════════════
+// User App Access
+// ═══════════════════════════════════
+
+// Apps that are always available to all authenticated users (no permission needed)
+var publicApps = map[string]bool{
+	"files":       true,
+	"mediaplayer": true,
+}
+
+// Apps that are ALWAYS admin-only (cannot be delegated)
+var adminOnlyApps = map[string]bool{
+	"storage": true,
+	"network": true,
+}
+
+// Check if a user has access to an app
+// Admin always has access. Public apps are always accessible.
+// For everything else, check user_app_access table.
+func dbUserHasAppAccess(username, role, appId string) bool {
+	if role == "admin" {
+		return true
+	}
+	if publicApps[appId] {
+		return true
+	}
+	if adminOnlyApps[appId] {
+		return false
+	}
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM user_app_access WHERE username = ? AND app_id = ?`, username, appId).Scan(&count)
+	if err != nil {
+		return false
+	}
+	return count > 0
+}
+
+// Get permission level for a user+app ('use', 'manage', or '')
+func dbUserGetAppPermission(username, role, appId string) string {
+	if role == "admin" {
+		return "manage"
+	}
+	if publicApps[appId] {
+		return "use"
+	}
+	if adminOnlyApps[appId] {
+		return ""
+	}
+	var perm string
+	err := db.QueryRow(`SELECT permission FROM user_app_access WHERE username = ? AND app_id = ?`, username, appId).Scan(&perm)
+	if err != nil {
+		return ""
+	}
+	return perm
+}
+
+// List all app access for a user
+func dbUserListAppAccess(username string) ([]map[string]interface{}, error) {
+	rows, err := db.Query(`SELECT app_id, permission, granted_by, granted_at FROM user_app_access WHERE username = ? ORDER BY app_id`, username)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []map[string]interface{}
+	for rows.Next() {
+		var appId, perm, grantedBy, grantedAt string
+		rows.Scan(&appId, &perm, &grantedBy, &grantedAt)
+		result = append(result, map[string]interface{}{
+			"appId":     appId,
+			"permission": perm,
+			"grantedBy": grantedBy,
+			"grantedAt": grantedAt,
+		})
+	}
+	if result == nil {
+		result = []map[string]interface{}{}
+	}
+	return result, nil
+}
+
+// List all app access entries (for admin panel)
+func dbAppAccessListAll() ([]map[string]interface{}, error) {
+	rows, err := db.Query(`SELECT username, app_id, permission, granted_by, granted_at FROM user_app_access ORDER BY username, app_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []map[string]interface{}
+	for rows.Next() {
+		var username, appId, perm, grantedBy, grantedAt string
+		rows.Scan(&username, &appId, &perm, &grantedBy, &grantedAt)
+		result = append(result, map[string]interface{}{
+			"username":   username,
+			"appId":      appId,
+			"permission": perm,
+			"grantedBy":  grantedBy,
+			"grantedAt":  grantedAt,
+		})
+	}
+	if result == nil {
+		result = []map[string]interface{}{}
+	}
+	return result, nil
+}
+
+// Grant app access
+func dbAppAccessGrant(username, appId, permission, grantedBy string) error {
+	_, err := db.Exec(`INSERT OR REPLACE INTO user_app_access (username, app_id, permission, granted_by, granted_at) VALUES (?, ?, ?, ?, ?)`,
+		username, appId, permission, grantedBy, time.Now().UTC().Format(time.RFC3339Nano))
+	return err
+}
+
+// Revoke app access
+func dbAppAccessRevoke(username, appId string) error {
+	_, err := db.Exec(`DELETE FROM user_app_access WHERE username = ? AND app_id = ?`, username, appId)
+	return err
+}
+
+// Revoke all app access for a user
+func dbAppAccessRevokeAll(username string) error {
+	_, err := db.Exec(`DELETE FROM user_app_access WHERE username = ?`, username)
 	return err
 }
 

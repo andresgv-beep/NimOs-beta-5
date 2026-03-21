@@ -117,10 +117,9 @@ func serveStatic(w http.ResponseWriter, r *http.Request) {
 // ═══════════════════════════════════
 
 func handleTorrentProxy(w http.ResponseWriter, r *http.Request) {
-	// Auth check — torrent needs session
-	session := authenticate(r)
+	// Auth check — torrent needs app access
+	session := requireAppAccess(w, r, "nimtorrent")
 	if session == nil {
-		jsonError(w, 401, "Not authenticated")
 		return
 	}
 

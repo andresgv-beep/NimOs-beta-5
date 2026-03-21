@@ -120,6 +120,22 @@ func requireAdmin(w http.ResponseWriter, r *http.Request) map[string]interface{}
 	return session
 }
 
+// Require app access — checks if user has permission to use a specific app
+// Admin always passes. Non-admin users need explicit grant in user_app_access.
+func requireAppAccess(w http.ResponseWriter, r *http.Request, appId string) map[string]interface{} {
+	session := requireAuth(w, r)
+	if session == nil {
+		return nil
+	}
+	username, _ := session["username"].(string)
+	role, _ := session["role"].(string)
+	if !dbUserHasAppAccess(username, role, appId) {
+		jsonError(w, 403, "No tienes acceso a esta aplicación")
+		return nil
+	}
+	return session
+}
+
 // Get client IP
 func clientIP(r *http.Request) string {
 	// Check X-Forwarded-For (behind proxy)
@@ -257,6 +273,12 @@ func startHTTPServer() {
 	// ── Network + VMs routes ──
 	registerNetworkRoutes(mux)
 
+	// ── App Access management (admin only) ──
+	mux.HandleFunc("/api/app-access", handleAppAccessRoutes)
+	mux.HandleFunc("/api/app-access/", handleAppAccessRoutes)
+	mux.HandleFunc("/api/app-access/apps", handleAppAccessRoutes)
+	mux.HandleFunc("/api/my-apps", handleMyAppsRoute)
+
 	// ── Torrent proxy to NimTorrent ──
 	mux.HandleFunc("/api/torrent/", handleTorrentProxy)
 	mux.HandleFunc("/api/torrent", handleTorrentProxy)
@@ -288,7 +310,7 @@ func handleContainerAction(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, 405, "Method not allowed")
 		return
 	}
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil {
 		return
 	}
@@ -307,4 +329,146 @@ func handleContainerAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonOk(w, result)
+}
+
+// ═══════════════════════════════════
+// App Access Routes (admin manages user app permissions)
+// ═══════════════════════════════════
+
+func handleAppAccessRoutes(w http.ResponseWriter, r *http.Request) {
+	urlPath := r.URL.Path
+	method := r.Method
+
+	// GET /api/app-access — list all grants (admin)
+	// GET /api/app-access/apps — list available apps with metadata
+	// GET /api/app-access?username=X — list grants for a specific user
+	if method == "GET" {
+		session := requireAdmin(w, r)
+		if session == nil {
+			return
+		}
+
+		if urlPath == "/api/app-access/apps" {
+			// Return list of system apps that can have permissions assigned
+			apps := []map[string]interface{}{
+				{"id": "nimsettings", "name": "NimSettings", "category": "system", "adminOnly": false},
+				{"id": "storage", "name": "Storage", "category": "system", "adminOnly": true},
+				{"id": "network", "name": "Network", "category": "system", "adminOnly": true},
+				{"id": "nimtorrent", "name": "NimTorrent", "category": "app", "adminOnly": false},
+				{"id": "appstore", "name": "App Store", "category": "system", "adminOnly": false},
+				{"id": "files", "name": "Files", "category": "app", "adminOnly": false, "public": true},
+				{"id": "mediaplayer", "name": "Media Player", "category": "app", "adminOnly": false, "public": true},
+				{"id": "terminal", "name": "Terminal", "category": "system", "adminOnly": false},
+				{"id": "containers", "name": "Containers", "category": "system", "adminOnly": false},
+				{"id": "monitor", "name": "System Monitor", "category": "system", "adminOnly": false},
+				{"id": "vms", "name": "Virtual Machines", "category": "system", "adminOnly": false},
+				{"id": "texteditor", "name": "Text Editor", "category": "app", "adminOnly": false},
+			}
+			jsonOk(w, map[string]interface{}{"apps": apps})
+			return
+		}
+
+		username := r.URL.Query().Get("username")
+		if username != "" {
+			grants, err := dbUserListAppAccess(username)
+			if err != nil {
+				jsonError(w, 500, err.Error())
+				return
+			}
+			jsonOk(w, map[string]interface{}{"grants": grants})
+			return
+		}
+
+		grants, err := dbAppAccessListAll()
+		if err != nil {
+			jsonError(w, 500, err.Error())
+			return
+		}
+		jsonOk(w, map[string]interface{}{"grants": grants})
+		return
+	}
+
+	// POST /api/app-access — grant access { username, appId, permission }
+	if method == "POST" {
+		session := requireAdmin(w, r)
+		if session == nil {
+			return
+		}
+		body, _ := readBody(r)
+		username := bodyStr(body, "username")
+		appId := bodyStr(body, "appId")
+		permission := bodyStr(body, "permission")
+		if username == "" || appId == "" {
+			jsonError(w, 400, "username and appId required")
+			return
+		}
+		if permission == "" {
+			permission = "use"
+		}
+		if adminOnlyApps[appId] {
+			jsonError(w, 400, "This app cannot be delegated to non-admin users")
+			return
+		}
+		adminUser, _ := session["username"].(string)
+		err := dbAppAccessGrant(username, appId, permission, adminUser)
+		if err != nil {
+			jsonError(w, 500, err.Error())
+			return
+		}
+		jsonOk(w, map[string]interface{}{"ok": true})
+		return
+	}
+
+	// DELETE /api/app-access — revoke access { username, appId }
+	if method == "DELETE" {
+		session := requireAdmin(w, r)
+		if session == nil {
+			return
+		}
+		body, _ := readBody(r)
+		username := bodyStr(body, "username")
+		appId := bodyStr(body, "appId")
+		if username == "" || appId == "" {
+			jsonError(w, 400, "username and appId required")
+			return
+		}
+		err := dbAppAccessRevoke(username, appId)
+		if err != nil {
+			jsonError(w, 500, err.Error())
+			return
+		}
+		jsonOk(w, map[string]interface{}{"ok": true})
+		return
+	}
+
+	jsonError(w, 405, "Method not allowed")
+}
+
+// GET /api/my-apps — returns list of app IDs the current user can access
+func handleMyAppsRoute(w http.ResponseWriter, r *http.Request) {
+	session := requireAuth(w, r)
+	if session == nil {
+		return
+	}
+	username, _ := session["username"].(string)
+	role, _ := session["role"].(string)
+
+	if role == "admin" {
+		// Admin has access to everything
+		jsonOk(w, map[string]interface{}{"apps": "all", "role": "admin"})
+		return
+	}
+
+	grants, _ := dbUserListAppAccess(username)
+	appIds := []string{}
+	// Always include public apps
+	for appId := range publicApps {
+		appIds = append(appIds, appId)
+	}
+	for _, g := range grants {
+		if id, ok := g["appId"].(string); ok {
+			appIds = append(appIds, id)
+		}
+	}
+	jsonOk(w, map[string]interface{}{"apps": appIds, "role": role, "grants": grants})
 }
