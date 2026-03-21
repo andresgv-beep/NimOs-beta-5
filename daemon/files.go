@@ -485,6 +485,12 @@ func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Reject path traversal in upload path
+	if strings.Contains(uploadPath, "..") {
+		jsonError(w, 400, "Invalid upload path")
+		return
+	}
+
 	sharePath, _ := share["path"].(string)
 	fullPath, err := validatePathWithinShare(sharePath, filepath.Join(uploadPath, fileName))
 	if err != nil {

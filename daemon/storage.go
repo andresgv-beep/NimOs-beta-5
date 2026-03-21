@@ -1365,9 +1365,9 @@ func handleStorageRoutes(w http.ResponseWriter, r *http.Request) {
 	urlPath := r.URL.Path
 	method := r.Method
 
-	// GET routes (need auth)
+	// GET routes (need admin — storage is sensitive)
 	if method == "GET" {
-		session := requireAuth(w, r)
+		session := requireAdmin(w, r)
 		if session == nil {
 			return
 		}

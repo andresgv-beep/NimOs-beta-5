@@ -24,6 +24,12 @@ func handleAppProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Block any path traversal attempts
+	if strings.Contains(r.URL.Path, "..") || strings.Contains(r.URL.RawPath, "..") {
+		jsonError(w, 400, "Invalid path")
+		return
+	}
+
 	// Parse /app/{appId}/...
 	path := strings.TrimPrefix(r.URL.Path, "/app/")
 	parts := strings.SplitN(path, "/", 2)

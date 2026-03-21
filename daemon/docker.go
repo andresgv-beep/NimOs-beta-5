@@ -275,7 +275,7 @@ func handleDockerRegexRoutes(w http.ResponseWriter, r *http.Request) bool {
 // ═══════════════════════════════════
 
 func dockerStatus(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil {
 		return
 	}

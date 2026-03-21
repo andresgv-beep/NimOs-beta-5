@@ -44,6 +44,9 @@ func readBody(r *http.Request) (map[string]interface{}, error) {
 	if len(data) == 0 {
 		return map[string]interface{}{}, nil
 	}
+	if len(data) >= 10*1024*1024 {
+		return nil, fmt.Errorf("request body too large")
+	}
 	var body map[string]interface{}
 	if err := json.Unmarshal(data, &body); err != nil {
 		return nil, fmt.Errorf("invalid JSON: %v", err)

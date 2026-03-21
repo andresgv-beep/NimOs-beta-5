@@ -924,7 +924,7 @@ func getSystemSummary() map[string]interface{} {
 // ═══════════════════════════════════
 
 func handleHardwareRoutes(w http.ResponseWriter, r *http.Request) {
-	session := requireAuth(w, r)
+	session := requireAdmin(w, r)
 	if session == nil {
 		return
 	}
