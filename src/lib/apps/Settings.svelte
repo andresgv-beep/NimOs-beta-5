@@ -63,6 +63,18 @@
   // ── Appearance ──
   let appearanceTab = 'tema';
 
+  // ── Portal / 2FA state ──
+  let twofa = { enabled: false, loading: true };
+  let twofaSetup = null;   // { secret, uri } when setup in progress
+  let twofaQrSvg = '';
+  let twofaCode = '';
+  let twofaMsg = '';
+  let twofaMsgError = false;
+  let twofaSaving = false;
+  let twofaDisablePassword = '';
+  let twofaBackupCodes = null; // string[] after enable
+  let showDisableConfirm = false;
+
   // Wallpapers built-in
   const BUILTIN_WALLPAPERS = [
     '/wallpapers/nim_walpaper_01.jpeg',
@@ -121,6 +133,15 @@
       } else if (view === 'updates') {
         const r = await fetch('/api/system/update/status', { headers: hdrs() });
         updateData = await r.json();
+      } else if (view === 'portal') {
+        twofa.loading = true;
+        const r = await fetch('/api/auth/2fa/status', { headers: hdrs() });
+        const d = await r.json();
+        twofa = { enabled: d.enabled || false, loading: false };
+        // Reset setup state when entering portal
+        twofaSetup = null; twofaQrSvg = ''; twofaCode = '';
+        twofaMsg = ''; twofaMsgError = false; twofaBackupCodes = null;
+        showDisableConfirm = false; twofaDisablePassword = '';
       }
     } catch(e) { console.error('[Settings2] load failed', e); }
     loading = false;
@@ -238,6 +259,63 @@
         }, 3000);
       } else { updateMsg = d.error || 'Error'; updateMsgError = true; applying = false; }
     } catch { updateMsg = 'Error de conexión'; updateMsgError = true; applying = false; }
+  }
+
+  // ── Portal / 2FA ──
+  async function twofa_startSetup() {
+    twofaSaving = true; twofaMsg = '';
+    try {
+      const r = await fetch('/api/auth/2fa/setup', { method: 'POST', headers: hdrs() });
+      const d = await r.json();
+      if (d.error) { twofaMsg = d.error; twofaMsgError = true; twofaSaving = false; return; }
+      twofaSetup = { secret: d.secret, uri: d.uri };
+      // Get QR SVG
+      const qr = await fetch('/api/auth/2fa/qr', {
+        method: 'POST',
+        headers: { ...hdrs(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: d.uri }),
+      });
+      const qd = await qr.json();
+      twofaQrSvg = qd.svg || '';
+    } catch { twofaMsg = 'Error iniciando configuración'; twofaMsgError = true; }
+    twofaSaving = false;
+  }
+
+  async function twofa_verify() {
+    if (!twofaCode || twofaCode.length !== 6) { twofaMsg = 'Introduce el código de 6 dígitos'; twofaMsgError = true; return; }
+    twofaSaving = true; twofaMsg = '';
+    try {
+      const r = await fetch('/api/auth/2fa/verify', {
+        method: 'POST',
+        headers: { ...hdrs(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: twofaCode }),
+      });
+      const d = await r.json();
+      if (d.error) { twofaMsg = d.error; twofaMsgError = true; twofaSaving = false; return; }
+      twofa.enabled = true;
+      twofaBackupCodes = d.backupCodes || null;
+      twofaSetup = null; twofaQrSvg = ''; twofaCode = '';
+      twofaMsg = '2FA activado correctamente'; twofaMsgError = false;
+    } catch { twofaMsg = 'Error verificando código'; twofaMsgError = true; }
+    twofaSaving = false;
+  }
+
+  async function twofa_disable() {
+    if (!twofaDisablePassword) { twofaMsg = 'Introduce tu contraseña'; twofaMsgError = true; return; }
+    twofaSaving = true; twofaMsg = '';
+    try {
+      const r = await fetch('/api/auth/2fa/disable', {
+        method: 'POST',
+        headers: { ...hdrs(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: twofaDisablePassword }),
+      });
+      const d = await r.json();
+      if (d.error) { twofaMsg = d.error; twofaMsgError = true; twofaSaving = false; return; }
+      twofa.enabled = false;
+      showDisableConfirm = false; twofaDisablePassword = '';
+      twofaMsg = '2FA desactivado'; twofaMsgError = false;
+    } catch { twofaMsg = 'Error desactivando 2FA'; twofaMsgError = true; }
+    twofaSaving = false;
   }
 </script>
 
@@ -408,8 +486,132 @@
           {/if}
 
         {:else if activeView === 'portal'}
-          <div class="section-label">Portal de acceso</div>
-          <p class="coming-soon">Portal configuration — coming soon</p>
+          <div class="section-label">Autenticación en dos pasos (2FA)</div>
+
+          {#if twofa.loading}
+            <div class="s-loading"><div class="spinner"></div></div>
+
+          {:else if twofaBackupCodes}
+            <!-- Backup codes shown after enabling -->
+            <div class="twofa-success">
+              <div class="twofa-success-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="twofa-success-title">2FA activado</div>
+              <p class="twofa-success-desc">Guarda estos códigos de recuperación en un lugar seguro. Son de un solo uso y te permitirán acceder si pierdes tu dispositivo.</p>
+              <div class="backup-codes-grid">
+                {#each twofaBackupCodes as code}
+                  <div class="backup-code">{code}</div>
+                {/each}
+              </div>
+              <button class="btn-secondary" style="margin-top:12px" on:click={() => { twofaBackupCodes = null; }}>
+                Ya los he guardado
+              </button>
+            </div>
+
+          {:else if twofaSetup}
+            <!-- Setup wizard: scan QR + verify -->
+            <div class="twofa-setup">
+              <div class="twofa-step-label">1. Escanea el código QR con tu app de autenticación</div>
+              <p class="twofa-hint">Usa Google Authenticator, Authy, o cualquier app compatible con TOTP.</p>
+
+              <div class="twofa-qr-wrap">
+                {#if twofaQrSvg}
+                  <div class="twofa-qr">{@html twofaQrSvg}</div>
+                {:else}
+                  <div class="twofa-qr-placeholder"><div class="spinner"></div></div>
+                {/if}
+              </div>
+
+              <div class="twofa-secret-row">
+                <span class="twofa-secret-label">Clave manual:</span>
+                <code class="twofa-secret-value">{twofaSetup.secret}</code>
+              </div>
+
+              <div class="twofa-step-label" style="margin-top:20px">2. Introduce el código de 6 dígitos</div>
+              <div class="twofa-verify-row">
+                <input
+                  class="form-input twofa-code-input"
+                  type="text"
+                  placeholder="000000"
+                  maxlength="6"
+                  bind:value={twofaCode}
+                  on:input={() => twofaCode = twofaCode.replace(/\D/g, '')}
+                  on:keydown={(e) => { if (e.key === 'Enter') twofa_verify(); }}
+                />
+                <button class="btn-accent" on:click={twofa_verify} disabled={twofaSaving}>
+                  {twofaSaving ? 'Verificando...' : 'Verificar y activar'}
+                </button>
+              </div>
+
+              <button class="btn-link" on:click={() => { twofaSetup = null; twofaQrSvg = ''; twofaCode = ''; twofaMsg = ''; }}>
+                Cancelar
+              </button>
+            </div>
+
+          {:else if twofa.enabled}
+            <!-- 2FA is active -->
+            <div class="twofa-status-card enabled">
+              <div class="twofa-status-icon enabled">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <div class="twofa-status-info">
+                <div class="twofa-status-title">2FA activado</div>
+                <div class="twofa-status-desc">Tu cuenta está protegida con autenticación en dos pasos.</div>
+              </div>
+              <div class="twofa-status-badge enabled">Activo</div>
+            </div>
+
+            {#if !showDisableConfirm}
+              <button class="btn-danger-outline" style="margin-top:14px" on:click={() => showDisableConfirm = true}>
+                Desactivar 2FA
+              </button>
+            {:else}
+              <div class="twofa-disable-form">
+                <div class="twofa-step-label">Confirma tu contraseña para desactivar 2FA</div>
+                <div class="twofa-verify-row">
+                  <input
+                    class="form-input"
+                    type="password"
+                    placeholder="Tu contraseña"
+                    bind:value={twofaDisablePassword}
+                    on:keydown={(e) => { if (e.key === 'Enter') twofa_disable(); }}
+                  />
+                  <button class="btn-accent" style="background:var(--red)" on:click={twofa_disable} disabled={twofaSaving}>
+                    {twofaSaving ? '...' : 'Confirmar'}
+                  </button>
+                  <button class="btn-secondary" on:click={() => { showDisableConfirm = false; twofaDisablePassword = ''; twofaMsg = ''; }}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            {/if}
+
+          {:else}
+            <!-- 2FA not enabled -->
+            <div class="twofa-status-card">
+              <div class="twofa-status-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+              </div>
+              <div class="twofa-status-info">
+                <div class="twofa-status-title">2FA desactivado</div>
+                <div class="twofa-status-desc">Añade una capa extra de seguridad a tu cuenta con Google Authenticator u otra app TOTP compatible.</div>
+              </div>
+              <div class="twofa-status-badge">Inactivo</div>
+            </div>
+
+            <button class="btn-accent" style="margin-top:14px" on:click={twofa_startSetup} disabled={twofaSaving}>
+              {twofaSaving ? 'Configurando...' : 'Configurar 2FA'}
+            </button>
+          {/if}
+
+          {#if twofaMsg}
+            <div class="twofa-msg" class:error={twofaMsgError}>{twofaMsg}</div>
+          {/if}
+
+          <div class="portal-sep"></div>
+          <div class="section-label">Sesión</div>
+          <p class="coming-soon">Auto-logout por inactividad — coming soon</p>
 
         {:else if activeView === 'updates'}
           <div class="section-label">Actualizaciones</div>
@@ -1007,4 +1209,105 @@
     position:absolute; bottom:5px; left:6px;
     font-size:9px; color:var(--text-3); font-weight:500;
   }
+
+  /* ── Portal / 2FA ── */
+  .twofa-status-card {
+    display:flex; align-items:center; gap:14px;
+    padding:14px 16px; border-radius:10px;
+    border:1px solid var(--border); background:var(--ibtn-bg);
+  }
+  .twofa-status-card.enabled { border-color:rgba(74,222,128,0.25); background:rgba(74,222,128,0.04); }
+  .twofa-status-icon {
+    width:36px; height:36px; border-radius:9px; flex-shrink:0;
+    background:rgba(128,128,128,0.08); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .twofa-status-icon svg { width:18px; height:18px; color:var(--text-3); }
+  .twofa-status-icon.enabled { background:rgba(74,222,128,0.10); border-color:rgba(74,222,128,0.25); }
+  .twofa-status-icon.enabled svg { color:var(--green); }
+  .twofa-status-info { flex:1; min-width:0; }
+  .twofa-status-title { font-size:12px; font-weight:600; color:var(--text-1); }
+  .twofa-status-desc { font-size:11px; color:var(--text-3); margin-top:2px; }
+  .twofa-status-badge {
+    padding:3px 9px; border-radius:20px; font-size:9px; font-weight:600;
+    background:var(--ibtn-bg); border:1px solid var(--border); color:var(--text-3);
+    flex-shrink:0; text-transform:uppercase; letter-spacing:.04em;
+  }
+  .twofa-status-badge.enabled { background:rgba(74,222,128,0.10); border-color:rgba(74,222,128,0.25); color:var(--green); }
+
+  .twofa-setup { max-width:420px; }
+  .twofa-step-label { font-size:11px; font-weight:600; color:var(--text-2); margin-bottom:6px; }
+  .twofa-hint { font-size:10px; color:var(--text-3); margin-bottom:14px; }
+
+  .twofa-qr-wrap { display:flex; justify-content:center; margin-bottom:14px; }
+  .twofa-qr {
+    width:180px; height:180px; padding:10px;
+    background:white; border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .twofa-qr :global(svg) { width:100%; height:100%; }
+  .twofa-qr-placeholder {
+    width:180px; height:180px; border-radius:10px;
+    background:rgba(255,255,255,0.04); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  .twofa-secret-row {
+    display:flex; align-items:center; gap:8px;
+    padding:8px 12px; border-radius:8px;
+    background:rgba(255,255,255,0.03); border:1px solid var(--border);
+  }
+  .twofa-secret-label { font-size:10px; color:var(--text-3); flex-shrink:0; }
+  .twofa-secret-value {
+    font-size:11px; color:var(--text-1); font-family:'DM Mono',monospace;
+    letter-spacing:.06em; word-break:break-all; user-select:all;
+  }
+
+  .twofa-verify-row { display:flex; align-items:center; gap:8px; }
+  .twofa-code-input {
+    width:120px; text-align:center; font-size:1.2em;
+    letter-spacing:4px; font-family:'DM Mono',monospace;
+  }
+
+  .twofa-msg { font-size:11px; padding:8px 0; color:var(--green); }
+  .twofa-msg.error { color:var(--red); }
+
+  .twofa-success { display:flex; flex-direction:column; align-items:center; gap:10px; max-width:400px; }
+  .twofa-success-icon {
+    width:42px; height:42px; border-radius:50%;
+    background:rgba(74,222,128,0.12); border:1px solid rgba(74,222,128,0.25);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .twofa-success-icon svg { width:20px; height:20px; color:var(--green); }
+  .twofa-success-title { font-size:14px; font-weight:600; color:var(--text-1); }
+  .twofa-success-desc { font-size:11px; color:var(--text-3); text-align:center; }
+  .backup-codes-grid {
+    display:grid; grid-template-columns:repeat(2, 1fr); gap:4px;
+    width:100%; margin-top:6px;
+  }
+  .backup-code {
+    padding:6px 10px; border-radius:6px; text-align:center;
+    font-family:'DM Mono',monospace; font-size:12px; font-weight:600;
+    color:var(--text-1); background:rgba(255,255,255,0.04);
+    border:1px solid var(--border); user-select:all;
+  }
+
+  .twofa-disable-form { margin-top:12px; max-width:400px; }
+
+  .btn-danger-outline {
+    padding:7px 13px; border-radius:8px;
+    border:1px solid rgba(248,113,113,0.25); background:rgba(248,113,113,0.06);
+    color:var(--red); font-size:11px; font-weight:600;
+    cursor:pointer; font-family:inherit; transition:all .15s;
+  }
+  .btn-danger-outline:hover { background:rgba(248,113,113,0.12); }
+
+  .btn-link {
+    background:none; border:none; color:var(--text-3);
+    font-size:11px; cursor:pointer; font-family:inherit;
+    padding:6px 0; margin-top:8px; transition:color .15s;
+  }
+  .btn-link:hover { color:var(--text-1); }
+
+  .portal-sep { height:1px; background:var(--border); margin:20px 0; }
 </style>
