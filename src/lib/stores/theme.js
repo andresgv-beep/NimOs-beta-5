@@ -44,11 +44,24 @@ function computeUiScale(setting) {
   //
   // Formula: scale = CSS_width / 1920, clamped between 0.85 and 1.5
 
+  // Use physical pixels to handle Linux DPI scaling correctly.
+  // On Linux with 125% scale: innerWidth=1536, dpr=1.25 → physical=1920 → scale=1.0
+  // On Windows with 125% scale: innerWidth=1920, dpr=1.25 → physical=2400 → scale=1.25 (too big)
+  // Windows already compensates via CSS pixels, Linux often doesn't.
+  // Heuristic: if dpr > 1 and physical > 2x baseline, OS is doing the scaling → ignore dpr
+  const physicalWidth = w * dpr;
   const baseline = 1920;
-  const scale = w / baseline;
 
-  // Clamp: never go below 0.85 (tiny screens) or above 1.5 (absurd)
-  return Math.max(0.85, Math.min(1.5, Math.round(scale * 20) / 20)); // round to 0.05 steps
+  let scale;
+  if (dpr > 1 && physicalWidth > baseline * 1.5) {
+    // OS is handling scaling (Windows HiDPI, Mac Retina) — use CSS pixels directly
+    scale = w / baseline;
+  } else {
+    // Linux often reports wrong DPR — use physical pixels
+    scale = physicalWidth / baseline;
+  }
+
+  return Math.max(0.75, Math.min(1.5, Math.round(scale * 20) / 20));
 }
 
 // Apply theme to DOM
