@@ -29,7 +29,20 @@
     try {
       const r = await fetch('/api/torrent/torrents', { headers: hdrs() });
       const d = await r.json();
-      torrents = Array.isArray(d) ? d : (d.torrents || []);
+      const raw = Array.isArray(d) ? d : (d.torrents || []);
+      // Normalize torrentd fields
+      torrents = raw.map(t => ({
+        ...t,
+        progress:      (t.progress != null && t.progress <= 1) ? t.progress * 100 : (t.progress || 0),
+        downloaded:    t.total_done    ?? t.downloaded ?? 0,
+        size:          t.total_wanted  ?? t.size ?? t.totalSize ?? 0,
+        dlSpeed:       t.download_rate ?? t.dlSpeed ?? t.downloadSpeed ?? 0,
+        ulSpeed:       t.upload_rate   ?? t.ulSpeed ?? t.uploadSpeed ?? 0,
+        numPeers:      t.peers         ?? t.numPeers ?? 0,
+        numSeeds:      t.seeds         ?? t.numSeeds ?? 0,
+        status:        t.paused ? 'paused' : (t.state || t.status || 'unknown'),
+        savePath:      t.save_path     ?? t.savePath ?? '',
+      }));
     } catch { torrents = []; }
     loading = false;
   }
