@@ -134,6 +134,10 @@
       {#await import('$lib/apps/StorageApp.svelte') then module}
         <svelte:component this={module.default} />
       {/await}
+    {:else if win.appId === 'network'}
+      {#await import('$lib/apps/NetworkApp.svelte') then module}
+        <svelte:component this={module.default} />
+      {/await}
     {:else if win.appId === 'nimtorrent'}
       {#await import('$lib/apps/NimTorrent.svelte') then module}
         <svelte:component this={module.default} />
