@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { prefs, setPref, THEMES, ACCENT_COLORS } from '$lib/stores/theme.js';
+  import TabNav from '$lib/components/TabNav.svelte';
   import { user } from '$lib/stores/auth.js';
   import { getToken } from '$lib/stores/auth.js';
 
@@ -263,6 +264,16 @@
       <div class="inner-titlebar">
         <span class="tb-title">Settings</span>
         <span class="tb-sub">— {sidebarSections.flatMap(s => s.items).find(i => i.id === activeView)?.label || ''}</span>
+        {#if activeView === 'appearance'}
+          <div class="tb-tabs">
+            <TabNav tabs={[
+              { id:'tema',    label:'Tema'    },
+              { id:'taskbar', label:'Taskbar' },
+              { id:'escala',  label:'Escala'  },
+              { id:'fondos',  label:'Fondos'  },
+            ]} bind:active={appearanceTab} />
+          </div>
+        {/if}
       </div>
 
       <!-- Content -->
@@ -387,22 +398,6 @@
           {#if applying}<div class="update-progress"><div class="spinner" style="width:16px;height:16px"></div><span>No cierres el navegador</span></div>{/if}
 
         {:else if activeView === 'appearance'}
-          <!-- Sub-tabs de apariencia -->
-          <div class="sub-tabs">
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div class="sub-tab" class:active={appearanceTab === 'tema'} on:click={() => appearanceTab = 'tema'}>Tema</div>
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div class="sub-tab" class:active={appearanceTab === 'taskbar'} on:click={() => appearanceTab = 'taskbar'}>Taskbar</div>
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div class="sub-tab" class:active={appearanceTab === 'escala'} on:click={() => appearanceTab = 'escala'}>Escala</div>
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div class="sub-tab" class:active={appearanceTab === 'fondos'} on:click={() => appearanceTab = 'fondos'}>Fondos</div>
-          </div>
-
           {#if appearanceTab === 'tema'}
             <div class="section-label">Tema del sistema</div>
             <div class="theme-row">
@@ -882,4 +877,5 @@
   .opt-btn:hover { color:var(--text-1); }
   .opt-btn.active { background:var(--active-bg); border-color:var(--border-hi); color:var(--text-1); }
   .opt-btn:disabled { opacity:.4; cursor:not-allowed; }
+  .tb-tabs { margin-left:auto; }
 </style>
