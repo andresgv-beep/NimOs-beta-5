@@ -306,7 +306,6 @@
               { id:'tema',    label:'Tema'    },
               { id:'taskbar', label:'Taskbar' },
               { id:'escala',  label:'Escala'  },
-              { id:'fondos',  label:'Fondos'  },
             ]} bind:active={appearanceTab} />
           </div>
         {/if}
@@ -556,9 +555,6 @@
               Pantalla: {typeof window !== 'undefined' ? `${window.screen.width}×${window.screen.height}` : '—'} · DPR: {typeof window !== 'undefined' ? window.devicePixelRatio?.toFixed(2) : '—'} · CSS: {typeof window !== 'undefined' ? `${window.innerWidth}×${window.innerHeight}` : '—'}
             </div>
 
-          {:else if appearanceTab === 'fondos'}
-            <div class="section-label">Fondos de escritorio</div>
-            <p class="coming-soon">Wallpaper selector — coming soon</p>
           {/if}
 
         {:else if activeView === 'about'}
@@ -967,9 +963,8 @@
 
   .wall-grid {
     display:grid;
-    grid-template-columns:repeat(3,1fr);
-    grid-auto-rows:100px;
-    gap:8px;
+    grid-template-columns:repeat(auto-fill, minmax(180px, 180px));
+    gap:10px;
     max-height:320px; overflow-y:auto;
     padding-right:4px;
   }
@@ -981,8 +976,7 @@
     cursor:pointer;
     border:2px solid transparent;
     transition:all .15s;
-    /* forzar altura — el grid-auto-rows lo controla */
-    min-height:0; min-width:0;
+    aspect-ratio:16/10;
   }
   .wall-item:hover { border-color:rgba(255,255,255,0.2); }
   .wall-item.active { border-color:var(--accent); }
