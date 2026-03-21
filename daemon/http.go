@@ -135,18 +135,32 @@ func clientIP(r *http.Request) string {
 	return addr
 }
 
-// CORS middleware — only allow requests from the same host (local UI)
+// CORS middleware + security headers
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Block TRACE method (prevents XST attacks)
+		if r.Method == "TRACE" {
+			w.WriteHeader(405)
+			return
+		}
+
+		// Security headers
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self'")
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+
+		// CORS — only reflect same-host or local origins
 		origin := r.Header.Get("Origin")
 		if origin != "" {
-			// Allow same-host origins (the NimOS UI served from this server)
-			// Also allow localhost/local IPs for development
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Vary", "Origin")
+			// Only allow origins from the same host or local network
+			if isLocalOrigin(origin) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Vary", "Origin")
+			}
 		}
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(204)
@@ -154,6 +168,27 @@ func corsMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isLocalOrigin checks if the origin is localhost, LAN IP, or .local domain
+func isLocalOrigin(origin string) bool {
+	origin = strings.ToLower(origin)
+	if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
+		return true
+	}
+	// Allow LAN IPs: 192.168.x.x, 10.x.x.x, 172.16-31.x.x
+	if strings.Contains(origin, "192.168.") || strings.Contains(origin, "10.") {
+		return true
+	}
+	// Allow .local domains (mDNS)
+	if strings.Contains(origin, ".local") {
+		return true
+	}
+	// Allow same port (NimOS UI served from same host)
+	if strings.Contains(origin, ":5000") || strings.Contains(origin, ":5009") {
+		return true
+	}
+	return false
 }
 
 // Start HTTP API server (non-blocking)

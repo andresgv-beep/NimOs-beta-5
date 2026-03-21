@@ -17,6 +17,13 @@ import (
 // ═══════════════════════════════════
 
 func handleAppProxy(w http.ResponseWriter, r *http.Request) {
+	// Require authentication for app proxy
+	session := authenticate(r)
+	if session == nil {
+		jsonError(w, 401, "Not authenticated")
+		return
+	}
+
 	// Parse /app/{appId}/...
 	path := strings.TrimPrefix(r.URL.Path, "/app/")
 	parts := strings.SplitN(path, "/", 2)
@@ -26,6 +33,15 @@ func handleAppProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	appId := parts[0]
+
+	// Validate appId — must be alphanumeric/dash only, no IPs, no domains, no traversal
+	if strings.Contains(appId, ".") || strings.Contains(appId, ":") ||
+		strings.Contains(appId, "/") || strings.Contains(appId, "\\") ||
+		strings.Contains(appId, "%") || strings.Contains(appId, "..") {
+		jsonError(w, 400, "Invalid app ID")
+		return
+	}
+
 	subPath := "/"
 	if len(parts) > 1 {
 		subPath = "/" + parts[1]

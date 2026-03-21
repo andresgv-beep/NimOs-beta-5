@@ -960,6 +960,13 @@ func handleHardwareRoutes(w http.ResponseWriter, r *http.Request) {
 		handleUpdateCheck(w)
 	case "/api/system/update/status":
 		handleUpdateStatus(w)
+	case "/api/system/reboot", "/api/system/shutdown", "/api/system/reboot-service", "/api/system/update/apply", "/api/terminal":
+		// These are POST-only admin routes — reject GET and non-admin
+		if r.Method != "POST" {
+			jsonError(w, 405, "Method not allowed")
+			return
+		}
+		handleSystemPost(w, r, session)
 	default:
 		// POST routes need body
 		if r.Method == "POST" {
