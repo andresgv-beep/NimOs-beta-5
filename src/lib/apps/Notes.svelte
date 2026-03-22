@@ -463,8 +463,8 @@
   .st-right { margin-left:auto; display:flex; gap:8px; }
   .spinner { width:12px; height:12px; border-radius:50%; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; animation:spin .7s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
-  .modal-overlay { position:fixed; inset:0; z-index:200; background:rgba(0,0,0,0.65); backdrop-filter:blur(3px); }
-  .modal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:201; width:500px; max-width:92%; max-height:75vh; background:var(--bg-inner); border-radius:12px; border:1px solid var(--border); box-shadow:0 24px 60px rgba(0,0,0,0.5); display:flex; flex-direction:column; overflow:hidden; animation:menuIn .18s cubic-bezier(0.16,1,0.3,1) both; }
+  .modal-overlay { position:fixed; inset:0; z-index:9998; background:rgba(0,0,0,0.65); backdrop-filter:blur(3px); }
+  .modal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:9999; width:500px; max-width:92%; max-height:75vh; background:var(--bg-inner); border-radius:12px; border:1px solid var(--border); box-shadow:0 24px 60px rgba(0,0,0,0.5); display:flex; flex-direction:column; overflow:hidden; animation:menuIn .18s cubic-bezier(0.16,1,0.3,1) both; }
   .modal-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border); background:var(--bg-bar); flex-shrink:0; }
   .modal-title { font-size:13px; font-weight:600; color:var(--text-1); }
   .modal-close { width:24px; height:24px; border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--text-3); background:var(--ibtn-bg); transition:all .15s; }
