@@ -1046,8 +1046,24 @@ func destroyPoolGo(poolName string) map[string]interface{} {
 
 	mountPoint, _ := poolConf["mountPoint"].(string)
 	arrayName, _ := poolConf["arrayName"].(string)
+	raidLevel, _ := poolConf["raidLevel"].(string)
 
-	// Delete all shares that belong to this pool from the database
+	// Get disk list from config for superblock cleanup
+	var poolDisks []string
+	if pd, ok := poolConf["disks"].([]interface{}); ok {
+		for _, d := range pd {
+			if ds, ok := d.(string); ok {
+				if !strings.HasPrefix(ds, "/dev/") {
+					ds = "/dev/" + ds
+				}
+				poolDisks = append(poolDisks, ds)
+			}
+		}
+	}
+
+	logMsg("Destroying pool '%s' (mount: %s, array: %s, disks: %v)", poolName, mountPoint, arrayName, poolDisks)
+
+	// ── 1. Delete ALL shares that belong to this pool ──
 	shares, _ := dbSharesList()
 	for _, s := range shares {
 		sharPool, _ := s["pool"].(string)
@@ -1061,30 +1077,103 @@ func destroyPoolGo(poolName string) map[string]interface{} {
 		}
 	}
 
-	run(fmt.Sprintf("umount %s 2>/dev/null || true", mountPoint))
+	// ── 2. Clean Docker if it was on this pool ──
+	dockerConf := getDockerConfigGo()
+	dockerPath, _ := dockerConf["path"].(string)
+	if dockerPath != "" && mountPoint != "" && strings.HasPrefix(dockerPath, mountPoint) {
+		// Docker was on this pool — stop containers and clean config
+		run("docker stop $(docker ps -aq) 2>/dev/null || true")
+		run("docker rm $(docker ps -aq) 2>/dev/null || true")
+		run("systemctl stop docker 2>/dev/null || true")
+		run("rm -f /etc/docker/daemon.json 2>/dev/null || true")
+
+		// Reset docker.json
+		newDockerConf := map[string]interface{}{
+			"installed": false, "path": nil, "permissions": []interface{}{},
+			"appPermissions": map[string]interface{}{}, "installedAt": nil,
+		}
+		saveDockerConfigGo(newDockerConf)
+
+		// Clear installed apps
+		saveInstalledApps([]map[string]interface{}{})
+
+		// Delete docker-apps share group
+		run("groupdel nimos-share-docker-apps 2>/dev/null || true")
+
+		logMsg("Docker config cleaned (was on pool '%s')", poolName)
+	}
+
+	// ── 3. Unmount the pool ──
+	if mountPoint != "" {
+		run(fmt.Sprintf("umount -l %s 2>/dev/null || true", mountPoint))
+		run(fmt.Sprintf("umount -f %s 2>/dev/null || true", mountPoint))
+	}
+
+	// ── 4. Stop and clean mdadm array ──
 	if arrayName != "" {
 		run(fmt.Sprintf("mdadm --stop /dev/%s 2>/dev/null || true", arrayName))
 	}
-	// Remove mount point directory to prevent orphan writes to system disk
-	if mountPoint != "" && strings.HasPrefix(mountPoint, nimbusPoolsDir) {
-		run(fmt.Sprintf("rm -rf %s 2>/dev/null || true", mountPoint))
-	}
-
-	// Remove from fstab
+	// Also try to stop any md device mounted at this path
 	if mountPoint != "" {
-		fstab, err := os.ReadFile("/etc/fstab")
-		if err == nil {
-			var lines []string
-			for _, line := range strings.Split(string(fstab), "\n") {
-				if !strings.Contains(line, mountPoint) {
-					lines = append(lines, line)
-				}
-			}
-			os.WriteFile("/etc/fstab", []byte(strings.Join(lines, "\n")), 0644)
+		mountSrc, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint))
+		mountSrc = strings.TrimSpace(mountSrc)
+		if strings.HasPrefix(mountSrc, "/dev/md") {
+			run(fmt.Sprintf("umount -l %s 2>/dev/null || true", mountSrc))
+			run(fmt.Sprintf("mdadm --stop %s 2>/dev/null || true", mountSrc))
 		}
 	}
 
-	// Remove from config
+	// ── 5. Zero mdadm superblock on ALL pool disks + their partitions ──
+	for _, disk := range poolDisks {
+		diskBase := filepath.Base(disk)
+		// Zero superblock on disk itself
+		run(fmt.Sprintf("mdadm --zero-superblock %s 2>/dev/null || true", disk))
+		// Find and zero all partitions of this disk
+		partsOut, _ := run(fmt.Sprintf("lsblk -ln -o NAME %s 2>/dev/null | tail -n +2", disk))
+		for _, p := range strings.Fields(partsOut) {
+			p = strings.TrimSpace(p)
+			if p != "" && p != diskBase {
+				run(fmt.Sprintf("mdadm --zero-superblock /dev/%s 2>/dev/null || true", p))
+			}
+		}
+	}
+
+	// ── 6. Remove mount point directory ──
+	if mountPoint != "" && strings.HasPrefix(mountPoint, nimbusPoolsDir) {
+		os.RemoveAll(mountPoint)
+	}
+
+	// ── 7. Clean fstab — remove ALL entries for this pool ──
+	if fstab, err := os.ReadFile("/etc/fstab"); err == nil {
+		var cleanLines []string
+		for _, line := range strings.Split(string(fstab), "\n") {
+			keep := true
+			// Remove by mount point
+			if mountPoint != "" && strings.Contains(line, mountPoint) {
+				keep = false
+			}
+			// Remove by array name
+			if arrayName != "" && strings.Contains(line, arrayName) {
+				keep = false
+			}
+			// Remove by pool label
+			if strings.Contains(line, "nimbus-"+poolName) {
+				keep = false
+			}
+			if keep {
+				cleanLines = append(cleanLines, line)
+			}
+		}
+		os.WriteFile("/etc/fstab", []byte(strings.Join(cleanLines, "\n")), 0644)
+	}
+
+	// ── 8. Update mdadm.conf (regenerate from remaining active arrays) ──
+	if raidLevel != "single" && arrayName != "" {
+		run("mdadm --detail --scan > /etc/mdadm/mdadm.conf 2>/dev/null || true")
+		run("update-initramfs -u 2>/dev/null || true")
+	}
+
+	// ── 9. Remove from storage.json ──
 	confPools = append(confPools[:poolIdx], confPools[poolIdx+1:]...)
 	conf["pools"] = confPools
 	if pp, _ := conf["primaryPool"].(string); pp == poolName {
@@ -1093,11 +1182,20 @@ func destroyPoolGo(poolName string) map[string]interface{} {
 			conf["primaryPool"] = first["name"]
 		} else {
 			conf["primaryPool"] = nil
+			conf["configuredAt"] = nil
 		}
 	}
 	saveStorageConfigFull(conf)
 
-	logMsg("Pool '%s' destroyed (shares cleaned, mount point removed)", poolName)
+	// ── 10. Rescan disks so they appear as available again ──
+	for _, disk := range poolDisks {
+		run(fmt.Sprintf("partx -d %s 2>/dev/null || true", disk))
+		run(fmt.Sprintf("blockdev --rereadpt %s 2>/dev/null || true", disk))
+	}
+	run("partprobe 2>/dev/null || true")
+	rescanSCSIBuses()
+
+	logMsg("Pool '%s' fully destroyed — all configs cleaned", poolName)
 	return map[string]interface{}{"ok": true, "pool": poolName}
 }
 
