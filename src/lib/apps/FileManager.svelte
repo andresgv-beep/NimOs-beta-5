@@ -586,7 +586,7 @@
 
   /* ── Context menu ── */
   .ctx-menu {
-    position:fixed; z-index:500;
+    position:fixed; z-index:9999;
     background:var(--bg-bar);
     border:1px solid var(--border);
     border-radius:9px;
