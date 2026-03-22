@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -203,7 +204,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// isLocalOrigin checks if the origin is localhost, LAN IP, or .local domain
+// isLocalOrigin checks if the origin is localhost, LAN IP, or the NAS's own .local domain
 // Uses proper URL parsing to prevent bypass via substrings (e.g. localhost.evil.com)
 func isLocalOrigin(origin string) bool {
 	origin = strings.ToLower(origin)
@@ -217,7 +218,6 @@ func isLocalOrigin(origin string) bool {
 	}
 	// Strip port
 	if idx := strings.LastIndex(host, ":"); idx != -1 {
-		// Make sure it's actually a port, not part of IPv6
 		portPart := host[idx+1:]
 		if matched, _ := regexp.MatchString(`^\d+$`, portPart); matched {
 			host = host[:idx]
@@ -235,21 +235,20 @@ func isLocalOrigin(origin string) bool {
 		return true
 	}
 
-	// .local mDNS domains — only single-label hostnames (e.g. "nimos.local")
-	// mDNS standard: hostname.local with NO extra dots/subdomains
-	// This blocks "attacker.local" style but allows legitimate "mynas.local"
+	// Only allow THIS machine's .local hostname (mDNS)
+	// e.g. if hostname is "nimos", allow "nimos.local"
 	if strings.HasSuffix(host, ".local") {
-		// Must be exactly "something.local" — one label, no dots before .local
-		prefix := strings.TrimSuffix(host, ".local")
-		if prefix != "" && !strings.Contains(prefix, ".") {
-			// Valid single-label mDNS name
-			return true
+		sysHostname, err := os.Hostname()
+		if err == nil {
+			sysHostname = strings.ToLower(strings.Split(sysHostname, ".")[0])
+			if host == sysHostname+".local" {
+				return true
+			}
 		}
 		return false
 	}
 
 	// LAN IPs — validate they are actual IPs, not subdomains
-	// Must be a valid IP pattern (digits and dots only, no letters)
 	if matched, _ := regexp.MatchString(`^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$`, host); matched {
 		// Check private ranges
 		if strings.HasPrefix(host, "192.168.") ||
