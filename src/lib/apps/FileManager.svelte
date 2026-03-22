@@ -41,7 +41,6 @@
   }
 
   let gridEl;
-  let rootEl;
 
   onMount(() => {
     fetchShares();
@@ -51,16 +50,9 @@
       if (!gridEl || !gridEl.contains(e.target)) return;
       const item = e.target.closest('.f-item');
       e.preventDefault();
-
-      // Calculate position relative to root container
-      const rect = rootEl.getBoundingClientRect();
-      const menuW = 190, menuH = 280;
-      const x = Math.min(e.clientX - rect.left, rect.width - menuW - 8);
-      const y = Math.min(e.clientY - rect.top, rect.height - menuH - 8);
-
       if (!item) {
         if (clipboard && currentShare) {
-          ctxMenu = { x: Math.max(0, x), y: Math.max(0, y), file: null, idx: -1 };
+          ctxMenu = { x: e.clientX, y: e.clientY, file: null, idx: -1 };
         }
         return;
       }
@@ -68,7 +60,7 @@
       const file = sorted[idx];
       if (!file) return;
       if (!selected.has(idx)) selected = new Set([idx]);
-      ctxMenu = { x: Math.max(0, x), y: Math.max(0, y), file, idx };
+      ctxMenu = { x: e.clientX, y: e.clientY, file, idx };
     };
 
     const handleMouseDown = (e) => {
@@ -84,7 +76,7 @@
       document.removeEventListener('mousedown', handleMouseDown);
     };
   });
-  $: if (currentShare !== undefined) fetchFiles();
+  $: if (currentShare !== undefined || currentPath) fetchFiles();
 
   function navigate(share, path) { currentShare = share; currentPath = path; closeCtx(); }
   function goBack() {
@@ -251,7 +243,7 @@
   if (e.key === 'Enter' && renameModal) confirmRename();
 }} />
 
-<div class="files-root" bind:this={rootEl}>
+<div class="files-root">
   <!-- SIDEBAR -->
   <div class="sidebar">
     <div class="sb-header">
@@ -373,12 +365,13 @@
       </div>
     </div>
   </div>
+</div>
 
-  <!-- ══ CONTEXT MENU ══ -->
-  {#if ctxMenu}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="ctx-menu" style="left:{ctxMenu.x}px;top:{ctxMenu.y}px"
-      on:contextmenu|preventDefault>
+<!-- ══ CONTEXT MENU ══ -->
+{#if ctxMenu}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="ctx-menu" style="left:{ctxMenu.x}px;top:{ctxMenu.y}px"
+    on:contextmenu|preventDefault>
 
     {#if ctxMenu.file}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -507,10 +500,9 @@
     </div>
   </div>
 {/if}
-</div>
 
 <style>
-  .files-root { width:100%; height:100%; display:flex; overflow:hidden; background:var(--bg-frame); font-family:'Inter',-apple-system,sans-serif; color:var(--text-1); position:relative; }
+  .files-root { width:100%; height:100%; display:flex; overflow:hidden; background:var(--bg-frame); font-family:'Inter',-apple-system,sans-serif; color:var(--text-1); }
 
   /* Sidebar */
   .sidebar { width:190px; flex-shrink:0; display:flex; flex-direction:column; gap:2px; padding:12px 8px; overflow-y:auto; background:var(--bg-sidebar); }
@@ -577,7 +569,7 @@
 
   /* ── Context menu ── */
   .ctx-menu {
-    position:absolute; z-index:500;
+    position:fixed; z-index:500;
     background:var(--bg-bar);
     border:1px solid var(--border);
     border-radius:9px;
