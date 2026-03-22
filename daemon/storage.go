@@ -950,21 +950,16 @@ func wipeDiskGo(diskPath string) map[string]interface{} {
 
 	// ── Phase 3: Force kernel to forget partitions ──
 
-	// Method 1: partx --delete (most reliable)
+	// Method 1: partx --delete (most reliable for removing stale partition entries)
 	run(fmt.Sprintf("partx -d %s 2>/dev/null || true", diskPath))
 
-	// Method 2: Delete each partition individually via sysfs
+	// Method 2: Delete each partition individually via partx (safer than sysfs)
 	for i := 1; i <= 128; i++ {
-		partDev := fmt.Sprintf("/sys/block/%s/%s%d", diskBase, diskBase, i)
-		if _, err := os.Stat(partDev); err == nil {
-			// Partition exists in sysfs — force kernel to delete it
-			deletePath := fmt.Sprintf("/sys/block/%s/%s%d/partition", diskBase, diskBase, i)
-			if _, err := os.Stat(deletePath); err == nil {
-				// Use ioctl via blockdev or echo to sysfs
-				run(fmt.Sprintf("echo 1 > /sys/block/%s/device/delete 2>/dev/null || true", diskBase))
-			}
+		partPath := fmt.Sprintf("/sys/block/%s/%s%d", diskBase, diskBase, i)
+		if _, err := os.Stat(partPath); err == nil {
+			run(fmt.Sprintf("partx -d --nr %d %s 2>/dev/null || true", i, diskPath))
 		} else {
-			break // No more partitions
+			break
 		}
 	}
 
@@ -978,7 +973,12 @@ func wipeDiskGo(diskPath string) map[string]interface{} {
 	run("udevadm settle --timeout=5 2>/dev/null || true")
 	time.Sleep(2 * time.Second)
 
-	// ── Phase 4: Verify ──
+	// ── Phase 4: Rescan to make sure disk is still visible ──
+	// The wipe may cause the kernel to lose track of the disk temporarily
+	// Rescan SCSI/SATA buses to ensure the disk device is alive
+	rescanSCSIBuses()
+
+	// ── Phase 5: Verify ──
 
 	// Re-read one more time
 	run(fmt.Sprintf("blockdev --rereadpt %s 2>/dev/null || true", diskPath))
@@ -1007,6 +1007,23 @@ func wipeDiskGo(diskPath string) map[string]interface{} {
 	}
 
 	return map[string]interface{}{"ok": true, "disk": diskPath}
+}
+
+// rescanSCSIBuses tells the kernel to rescan all SCSI/SATA host buses
+// This re-discovers disks that may have been lost during aggressive wipe operations
+func rescanSCSIBuses() {
+	// Find all SCSI host adapters and trigger rescan
+	entries, err := os.ReadDir("/sys/class/scsi_host")
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		scanPath := filepath.Join("/sys/class/scsi_host", e.Name(), "scan")
+		os.WriteFile(scanPath, []byte("- - -"), 0200)
+	}
+	// Wait for udev to process the new devices
+	run("udevadm settle --timeout=5 2>/dev/null || true")
+	time.Sleep(1 * time.Second)
 }
 
 func destroyPoolGo(poolName string) map[string]interface{} {
@@ -1498,6 +1515,7 @@ func handleStorageRoutes(w http.ResponseWriter, r *http.Request) {
 				jsonOk(w, createPoolGo(body))
 			}
 		case "/api/storage/scan":
+			rescanSCSIBuses()
 			jsonOk(w, map[string]interface{}{"ok": true, "disks": detectStorageDisksGo()})
 		case "/api/storage/backup":
 			backupConfigToPoolGo()
