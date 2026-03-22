@@ -31,19 +31,30 @@
     try {
       const poolRes = await fetch('/api/storage/status', { headers: hdrs() });
       const poolData = await poolRes.json();
-      hasPool = poolData.hasPool === true || (poolData.pools?.length > 0);
+      const pools = poolData.pools || [];
+      hasPool = poolData.hasPool === true || pools.length > 0;
 
       if (!hasPool) { loading = false; return; }
 
+      // Find primary pool or first pool — Docker will install here
+      const primaryPool = pools.find(p => p.isPrimary) || pools[0];
+      const poolName = primaryPool?.name || '';
+
       const res = await fetch('/api/docker/status', { headers: hdrs() });
+      if (!res.ok && res.status === 403) {
+        // Non-admin without Docker permission — just try to load catalog
+        dockerReady = true;
+        await loadCatalog();
+        return;
+      }
       const data = await res.json();
       dockerPath = data.path || '';
-      
+
       if (data.installed && data.dockerRunning) {
         dockerReady = true;
         await loadCatalog();
       } else {
-        await installDocker();
+        await installDocker(poolName);
       }
     } catch(e) {
       console.error('[AppStore] Docker check failed:', e);
@@ -52,17 +63,18 @@
     }
   }
 
-  async function installDocker() {
+  async function installDocker(poolName = '') {
     dockerInstalling = true;
     dockerError = null;
     try {
       const res = await fetch('/api/docker/install', {
         method: 'POST',
         headers: { ...hdrs(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ pool: poolName }),
       });
       const data = await res.json();
       if (data.ok && data.dockerAvailable) {
+        dockerPath = data.path || dockerPath;
         dockerReady = true;
         await loadCatalog();
       } else {
