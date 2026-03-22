@@ -519,7 +519,7 @@
 {/if}
 
 <style>
-  .files-root { width:100%; height:100%; display:flex; overflow:hidden; background:var(--bg-frame); font-family:'Inter',-apple-system,sans-serif; color:var(--text-1); }
+  .files-root { width:100%; height:100%; display:flex; overflow:hidden; position:relative; background:var(--bg-frame); font-family:'Inter',-apple-system,sans-serif; color:var(--text-1); }
 
   /* Sidebar */
   .sidebar { width:190px; flex-shrink:0; display:flex; flex-direction:column; gap:2px; padding:12px 8px; overflow-y:auto; background:var(--bg-sidebar); }
@@ -586,7 +586,7 @@
 
   /* ── Context menu ── */
   .ctx-menu {
-    position:fixed; z-index:9999;
+    position:absolute; z-index:500;
     background:var(--bg-bar);
     border:1px solid var(--border);
     border-radius:9px;
