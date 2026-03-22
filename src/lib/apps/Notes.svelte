@@ -137,47 +137,47 @@
   // ── Syntax highlighting ──
   function highlight(content, name) {
     const ext = getExt(name);
+    // Escapar HTML primero
     let code = content
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
 
     if (ext === 'py') {
       code = code
         .replace(/\b(import|from|def|class|return|if|elif|else|for|while|try|except|with|as|in|not|and|or|True|False|None|pass|break|continue|raise|yield|lambda|async|await)\b/g, '<span class="kw">$1</span>')
-        .replace(/("""[\s\S]*?"""|'''[\s\S]*?'''|"[^"]*"|'[^']*')/g, '<span class="str">$1</span>')
+        .replace(/(&quot;[^&]*&quot;|'[^']*')/g, '<span class="str">$1</span>')
         .replace(/(#[^\n]*)/g, '<span class="cmt">$1</span>')
         .replace(/\b(\d+\.?\d*)\b/g, '<span class="num">$1</span>')
         .replace(/\b(print|len|range|type|str|int|float|list|dict|set|tuple|open|input|super)\b/g, '<span class="bi">$1</span>');
     } else if (ext === 'go') {
       code = code
         .replace(/\b(package|import|func|type|struct|interface|var|const|return|if|else|for|range|switch|case|default|go|defer|chan|map|make|new|nil|true|false|break|continue|select)\b/g, '<span class="kw">$1</span>')
-        .replace(/("(?:[^"\\]|\\.)*")/g, '<span class="str">$1</span>')
+        .replace(/(&quot;[^&]*&quot;)/g, '<span class="str">$1</span>')
         .replace(/(\/\/[^\n]*)/g, '<span class="cmt">$1</span>')
         .replace(/\b(int|int64|int32|string|bool|byte|float64|float32|error|any)\b/g, '<span class="tp">$1</span>')
         .replace(/\b(\d+)\b/g, '<span class="num">$1</span>');
-    } else if (ext === 'js' || ext === 'ts') {
+    } else if (ext === 'js' || ext === 'ts' || ext === 'svelte') {
       code = code
         .replace(/\b(const|let|var|function|return|if|else|for|while|class|import|export|default|from|async|await|new|this|typeof|instanceof|in|of|try|catch|throw|break|continue|switch|case)\b/g, '<span class="kw">$1</span>')
-        .replace(/(`[^`]*`|"[^"]*"|'[^']*')/g, '<span class="str">$1</span>')
+        .replace(/(`[^`]*`|&quot;[^&]*&quot;|'[^']*')/g, '<span class="str">$1</span>')
         .replace(/(\/\/[^\n]*)/g, '<span class="cmt">$1</span>')
         .replace(/\b(\d+)\b/g, '<span class="num">$1</span>');
     } else if (ext === 'md') {
       code = code
         .replace(/^(#{1,6}\s.*)$/gm, '<span class="fn">$1</span>')
-        .replace(/^(\s*[-*]\s.*)$/gm, '$1')
-        .replace(/(\*\*[^*]+\*\*)/g, '<span class="str">$1</span>')
-        .replace(/(```[\s\S]*?```)/g, '<span class="cmt">$1</span>');
+        .replace(/(&amp;\*\*[^*]+\*\*|\*\*[^*]+\*\*)/g, '<span class="str">$1</span>')
+        .replace(/^(&gt;.*)$/gm, '<span class="cmt">$1</span>');
     } else if (ext === 'json') {
       code = code
-        .replace(/("(?:[^"\\]|\\.)*")\s*:/g, '<span class="fn">$1</span>:')
-        .replace(/:\s*("(?:[^"\\]|\\.)*")/g, ': <span class="str">$1</span>')
+        .replace(/(&quot;[^&]*&quot;)\s*:/g, '<span class="fn">$1</span>:')
+        .replace(/:\s*(&quot;[^&]*&quot;)/g, ': <span class="str">$1</span>')
         .replace(/\b(true|false|null)\b/g, '<span class="kw">$1</span>')
         .replace(/\b(\d+\.?\d*)\b/g, '<span class="num">$1</span>');
     }
     return code;
   }
-
   $: activeFile = activeIdx >= 0 ? openFiles[activeIdx] : null;
   $: lines = activeFile ? activeFile.content.split('\n') : [];
   $: highlighted = activeFile ? highlight(activeFile.content, activeFile.name).split('\n') : [];
@@ -480,13 +480,13 @@
   .ln { padding:0 14px 0 8px; font-size:12.5px; line-height:1.75; font-family:'DM Mono',monospace; color:var(--text-3); }
   .ln.active { color:var(--accent); }
 
-  .code-wrap { flex:1; position:relative; padding:14px 0; }
-  .code-highlight { padding:0 20px; pointer-events:none; }
+  .code-wrap { flex:1; position:relative; }
+  .code-highlight { padding:14px 20px; pointer-events:none; }
   .code-line { font-size:12.5px; line-height:1.75; font-family:'DM Mono',monospace; color:var(--text-1); white-space:pre; min-height:1.75em; border-radius:3px; margin:0 -4px; padding:0 4px; }
   .code-line.active-line { background:rgba(124,111,255,0.07); }
 
   .code-textarea {
-    position:absolute; inset:0; padding:0 20px;
+    position:absolute; inset:0; padding:14px 20px;
     font-size:12.5px; line-height:1.75;
     font-family:'DM Mono',monospace;
     color:transparent; background:transparent;
