@@ -398,7 +398,6 @@ func getStoragePoolsGo() []map[string]interface{} {
 	conf := getStorageConfigFull()
 	raids := getRAIDStatusGo()
 	var pools []map[string]interface{}
-	configChanged := false
 
 	confPools, _ := conf["pools"].([]interface{})
 	primaryPool, _ := conf["primaryPool"].(string)
@@ -424,7 +423,7 @@ func getStoragePoolsGo() []map[string]interface{} {
 		filesystem, _ := poolConf["filesystem"].(string)
 		createdAt, _ := poolConf["createdAt"].(string)
 
-		// Find RAID array — first try by name, then by member disks
+		// Find RAID array
 		var raid map[string]interface{}
 		for _, r := range raids {
 			if r["name"] == arrayName {
@@ -432,88 +431,30 @@ func getStoragePoolsGo() []map[string]interface{} {
 				break
 			}
 		}
-		// If not found by name, search by disks (kernel may reassign md numbers on reboot)
-		if raid == nil && arrayName != "" {
-			poolDisks := map[string]bool{}
-			if pd, ok := poolConf["disks"].([]interface{}); ok {
-				for _, d := range pd {
-					if ds, ok := d.(string); ok {
-						// Extract base disk name: "/dev/sda" → "sda"
-						base := ds
-						if idx := strings.LastIndex(ds, "/"); idx >= 0 {
-							base = ds[idx+1:]
-						}
-						poolDisks[base] = true
-					}
-				}
-			}
-			if len(poolDisks) > 0 {
-				for _, r := range raids {
-					members, _ := r["members"].([]interface{})
-					matchCount := 0
-					for _, m := range members {
-						mm, _ := m.(map[string]interface{})
-						dev, _ := mm["device"].(string)
-						// Strip partition number: "sda1" → "sda"
-						devBase := strings.TrimRight(dev, "0123456789")
-						if poolDisks[devBase] {
-							matchCount++
-						}
-					}
-					if matchCount > 0 && matchCount >= len(poolDisks) {
-						raid = r
-						// Auto-update config with correct array name
-						newName, _ := r["name"].(string)
-						if newName != "" && newName != arrayName {
-							arrayName = newName
-							poolConf["arrayName"] = newName
-							configChanged = true
-						}
-						break
-					}
-				}
-			}
-		}
 
-		// Check if actually mounted (not just directory on root filesystem)
-		isMounted := false
-		if mountPoint != "" {
-			mountSrc, mountOk := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint))
-			if mountOk && strings.TrimSpace(mountSrc) != "" {
-				// Verify it's not the root filesystem
-				rootSrc, _ := run("findmnt -n -o SOURCE / 2>/dev/null")
-				if strings.TrimSpace(mountSrc) != strings.TrimSpace(rootSrc) {
-					isMounted = true
-				}
-			}
-		}
-
-		// Get disk usage ONLY if actually mounted
+		// Get disk usage
 		var total, used, available int64
-		if isMounted {
-			if mountInfo, ok := run(fmt.Sprintf("df -B1 --output=size,used,avail %s 2>/dev/null", mountPoint)); ok {
-				lines := strings.Split(strings.TrimSpace(mountInfo), "\n")
-				if len(lines) > 1 {
-					parts := strings.Fields(lines[1])
-					if len(parts) >= 3 {
-						total = parseInt64(parts[0])
-						used = parseInt64(parts[1])
-						available = parseInt64(parts[2])
-					}
+		if mountInfo, ok := run(fmt.Sprintf("df -B1 --output=size,used,avail %s 2>/dev/null", mountPoint)); ok {
+			lines := strings.Split(strings.TrimSpace(mountInfo), "\n")
+			if len(lines) > 1 {
+				parts := strings.Fields(lines[1])
+				if len(parts) >= 3 {
+					total = parseInt64(parts[0])
+					used = parseInt64(parts[1])
+					available = parseInt64(parts[2])
 				}
 			}
 		}
 
 		poolStatus := "unknown"
-		if !isMounted {
-			poolStatus = "offline"
-			total = 0
-			used = 0
-			available = 0
-		} else if raid != nil {
+		if raid != nil {
 			poolStatus, _ = raid["status"].(string)
 		} else if raidLevel == "single" || arrayName == "" {
-			poolStatus = "active"
+			if total > 0 {
+				poolStatus = "active"
+			} else {
+				poolStatus = "unmounted"
+			}
 		}
 
 		var disks []interface{}
@@ -569,13 +510,6 @@ func getStoragePoolsGo() []map[string]interface{} {
 	if pools == nil {
 		pools = []map[string]interface{}{}
 	}
-
-	// Auto-save config if array names were corrected
-	if configChanged {
-		saveStorageConfigFull(conf)
-		logMsg("Storage config auto-updated (array names corrected)")
-	}
-
 	return pools
 }
 
@@ -1271,16 +1205,10 @@ func restorePoolGo(device, poolName string) map[string]interface{} {
 // ═══════════════════════════════════
 
 func startStorageMonitoring() {
-	// On startup: clean orphan mount point directories
-	// If a pool dir exists but nothing is mounted there, remove it
-	// to prevent writes going to the system disk
-	cleanOrphanMountPoints()
-
 	go func() {
 		for {
 			time.Sleep(5 * time.Minute)
 			checkStorageHealthGo()
-			cleanOrphanMountPoints()
 		}
 	}()
 	go func() {
@@ -1291,41 +1219,6 @@ func startStorageMonitoring() {
 			}
 		}
 	}()
-}
-
-func cleanOrphanMountPoints() {
-	conf := getStorageConfigFull()
-	confPools, _ := conf["pools"].([]interface{})
-
-	for _, poolRaw := range confPools {
-		pm, _ := poolRaw.(map[string]interface{})
-		if pm == nil {
-			continue
-		}
-		mountPoint, _ := pm["mountPoint"].(string)
-		if mountPoint == "" || !strings.HasPrefix(mountPoint, nimbusPoolsDir) {
-			continue
-		}
-
-		// Check if directory exists
-		if _, err := os.Stat(mountPoint); err != nil {
-			continue // doesn't exist, nothing to clean
-		}
-
-		// Check if actually mounted
-		mountSrc, ok := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint))
-		if ok && strings.TrimSpace(mountSrc) != "" {
-			rootSrc, _ := run("findmnt -n -o SOURCE / 2>/dev/null")
-			if strings.TrimSpace(mountSrc) != strings.TrimSpace(rootSrc) {
-				continue // properly mounted on a real device
-			}
-		}
-
-		// Directory exists but not mounted on a real device — remove it
-		// to prevent any process from writing to system disk
-		os.RemoveAll(mountPoint)
-		logMsg("Removed orphan mount point %s (pool disk not mounted)", mountPoint)
-	}
 }
 
 // ═══════════════════════════════════
@@ -1365,9 +1258,9 @@ func handleStorageRoutes(w http.ResponseWriter, r *http.Request) {
 	urlPath := r.URL.Path
 	method := r.Method
 
-	// GET routes (need admin — storage is sensitive)
+	// GET routes (need auth)
 	if method == "GET" {
-		session := requireAdmin(w, r)
+		session := requireAuth(w, r)
 		if session == nil {
 			return
 		}

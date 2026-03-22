@@ -249,9 +249,6 @@ func filesMkdir(w http.ResponseWriter, r *http.Request, session map[string]inter
 		jsonError(w, 404, "Shared folder not found")
 		return
 	}
-	if !requireShareMounted(w, share) {
-		return
-	}
 	if getSharePermission(session, share) != "rw" {
 		jsonError(w, 403, "Write access denied")
 		return
@@ -290,9 +287,6 @@ func filesDelete(w http.ResponseWriter, r *http.Request, session map[string]inte
 		jsonError(w, 404, "Shared folder not found")
 		return
 	}
-	if !requireShareMounted(w, share) {
-		return
-	}
 	if getSharePermission(session, share) != "rw" {
 		jsonError(w, 403, "Write access denied")
 		return
@@ -311,10 +305,6 @@ func filesDelete(w http.ResponseWriter, r *http.Request, session map[string]inte
 		return
 	}
 
-	if _, serr := os.Stat(fullPath); serr != nil {
-		jsonError(w, 404, "File not found")
-		return
-	}
 	if err := os.RemoveAll(fullPath); err != nil {
 		jsonError(w, 500, err.Error())
 		return
@@ -340,9 +330,6 @@ func filesRename(w http.ResponseWriter, r *http.Request, session map[string]inte
 	share, _ := dbSharesGet(shareName)
 	if share == nil {
 		jsonError(w, 404, "Shared folder not found")
-		return
-	}
-	if !requireShareMounted(w, share) {
 		return
 	}
 	if getSharePermission(session, share) != "rw" {
@@ -390,9 +377,6 @@ func filesPaste(w http.ResponseWriter, r *http.Request, session map[string]inter
 	destShare, _ := dbSharesGet(destShareName)
 	if srcShare == nil || destShare == nil {
 		jsonError(w, 404, "Share not found")
-		return
-	}
-	if !requireShareMounted(w, destShare) {
 		return
 	}
 
@@ -478,23 +462,10 @@ func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reject filenames with path traversal attempts in the raw input
-	rawFilename := header.Filename
-	if strings.Contains(rawFilename, "..") || strings.Contains(rawFilename, "/") || strings.Contains(rawFilename, "\\") {
-		jsonError(w, 400, "Invalid filename")
-		return
-	}
-
 	// Sanitize filename
-	fileName := sanitizeFileName(rawFilename)
+	fileName := sanitizeFileName(header.Filename)
 	if fileName == "" || len(fileName) > 255 {
 		jsonError(w, 400, "Invalid filename")
-		return
-	}
-
-	// Reject path traversal in upload path
-	if strings.Contains(uploadPath, "..") {
-		jsonError(w, 400, "Invalid upload path")
 		return
 	}
 
@@ -524,24 +495,9 @@ func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func sanitizeFileName(name string) string {
-	// Extract only the base filename — strip any directory path components
-	name = filepath.Base(name)
-	// Reject . and .. explicitly
-	if name == "." || name == ".." || name == "" {
-		return ""
-	}
-	// Remove dangerous characters
 	re := regexp.MustCompile(`[\/\\:*?"<>|]`)
 	name = re.ReplaceAllString(name, "_")
 	name = strings.ReplaceAll(name, "..", "")
-	// Remove null bytes
-	name = strings.ReplaceAll(name, "\x00", "")
-	// Trim leading dots (hidden files on Linux)
-	// This is optional — uncomment if you want to prevent hidden file creation
-	// name = strings.TrimLeft(name, ".")
-	if name == "" {
-		return ""
-	}
 	return name
 }
 
