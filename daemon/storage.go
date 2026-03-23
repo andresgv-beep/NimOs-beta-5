@@ -1751,6 +1751,18 @@ func startupStorageAndDocker() {
 		}
 
 		logMsg("startup: Docker configuration verified")
+
+		// ── 4. Ensure Docker is running ──
+		// Docker may be disabled from a previous pool destroy — re-enable and start
+		if _, ok := run("which docker 2>/dev/null"); ok {
+			run("systemctl enable docker.service docker.socket 2>/dev/null || true")
+			// Check if Docker is running
+			if _, dockerRunning := run("docker info 2>/dev/null"); !dockerRunning {
+				logMsg("startup: Docker not running — starting...")
+				run("systemctl start docker 2>/dev/null || true")
+			}
+			logMsg("startup: Docker is running")
+		}
 	}
 
 	logMsg("startup: Storage and Docker initialization complete")
