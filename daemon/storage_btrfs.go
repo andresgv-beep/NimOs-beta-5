@@ -141,18 +141,16 @@ func createPoolBtrfs(body map[string]interface{}) map[string]interface{} {
 
 	// ── Mount ──
 	os.MkdirAll(mountPoint, 0755)
-	mountOpts := "defaults,noatime,compress=zstd:3,space_cache=v2"
-	if len(disks) > 1 {
-		// For multi-disk: just mount the first disk, btrfs auto-detects the rest
-		_, mountOk := run(fmt.Sprintf("mount -t btrfs -o %s %s %s 2>&1", mountOpts, disks[0], mountPoint))
-		if !mountOk {
-			return map[string]interface{}{"error": "Failed to mount Btrfs filesystem"}
-		}
-	} else {
-		_, mountOk := run(fmt.Sprintf("mount -t btrfs -o %s %s %s 2>&1", mountOpts, disks[0], mountPoint))
-		if !mountOk {
-			return map[string]interface{}{"error": "Failed to mount Btrfs filesystem"}
-		}
+	mountOpts := "defaults,noatime,compress=zstd:3"
+	mountOut, mountOk := run(fmt.Sprintf("mount -t btrfs -o %s %s %s 2>&1", mountOpts, disks[0], mountPoint))
+	if !mountOk {
+		return map[string]interface{}{"error": fmt.Sprintf("Btrfs created but mount failed: %s", mountOut)}
+	}
+
+	// Verify mount actually worked
+	verifyOut, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint))
+	if strings.TrimSpace(verifyOut) == "" {
+		return map[string]interface{}{"error": "Btrfs created but mount verification failed — filesystem not mounted"}
 	}
 
 	// ── Create subvolumes ──

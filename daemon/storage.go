@@ -1519,34 +1519,48 @@ func cleanOrphanMountPoints() {
 	conf := getStorageConfigFull()
 	confPools, _ := conf["pools"].([]interface{})
 
+	// Build set of known pool mount points — NEVER delete these
+	knownMounts := map[string]bool{}
 	for _, poolRaw := range confPools {
 		pm, _ := poolRaw.(map[string]interface{})
 		if pm == nil {
 			continue
 		}
-		mountPoint, _ := pm["mountPoint"].(string)
-		if mountPoint == "" || !strings.HasPrefix(mountPoint, nimbusPoolsDir) {
+		if mp, _ := pm["mountPoint"].(string); mp != "" {
+			knownMounts[mp] = true
+		}
+	}
+
+	// Scan /nimbus/pools/ for directories that aren't known pools
+	entries, err := os.ReadDir(nimbusPoolsDir)
+	if err != nil {
+		return
+	}
+
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		dirPath := filepath.Join(nimbusPoolsDir, e.Name())
+
+		// Skip if this is a known pool — never delete
+		if knownMounts[dirPath] {
 			continue
 		}
 
-		// Check if directory exists
-		if _, err := os.Stat(mountPoint); err != nil {
-			continue // doesn't exist, nothing to clean
-		}
-
-		// Check if actually mounted
-		mountSrc, ok := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint))
+		// This directory is not in storage.json — it's orphaned
+		// Check if it's mounted on something real
+		mountSrc, ok := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", dirPath))
 		if ok && strings.TrimSpace(mountSrc) != "" {
 			rootSrc, _ := run("findmnt -n -o SOURCE / 2>/dev/null")
 			if strings.TrimSpace(mountSrc) != strings.TrimSpace(rootSrc) {
-				continue // properly mounted on a real device
+				continue // mounted on a real device, leave it
 			}
 		}
 
-		// Directory exists but not mounted on a real device — remove it
-		// to prevent any process from writing to system disk
-		os.RemoveAll(mountPoint)
-		logMsg("Removed orphan mount point %s (pool disk not mounted)", mountPoint)
+		// Orphan directory on system disk — remove it
+		os.RemoveAll(dirPath)
+		logMsg("Removed orphan mount point %s (not in storage.json, not mounted)", dirPath)
 	}
 }
 

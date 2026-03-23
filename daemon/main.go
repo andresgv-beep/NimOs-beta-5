@@ -621,17 +621,15 @@ func main() {
 	detectHardwareTools()
 	startHTTPServer()
 	startRateLimitCleanup()
-	startStorageMonitoring()
 
-	// ZFS: auto-import pools and start snapshot scheduler
+	// FIRST: Mount all pools before anything else touches storage
 	zfsAutoImportOnStartup()
-	startZfsScheduler()
-
-	// Btrfs: auto-mount pools
 	btrfsAutoMountOnStartup()
-
-	// Unified storage + Docker startup — mount everything, fix Docker config
 	startupStorageAndDocker()
+
+	// THEN: Start monitoring (cleanOrphanMountPoints runs here, AFTER pools are mounted)
+	startStorageMonitoring()
+	startZfsScheduler()
 
 	// Clean up stale socket
 	os.Remove(socketPath)
