@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -142,15 +143,62 @@ func createPoolBtrfs(body map[string]interface{}) map[string]interface{} {
 	// ── Mount ──
 	os.MkdirAll(mountPoint, 0755)
 	mountOpts := "defaults,noatime,compress=zstd:3"
-	mountOut, mountOk := run(fmt.Sprintf("mount -t btrfs -o %s %s %s 2>&1", mountOpts, disks[0], mountPoint))
-	if !mountOk {
-		return map[string]interface{}{"error": fmt.Sprintf("Btrfs created but mount failed: %s", mountOut)}
+
+	// Add to fstab FIRST so mount can use it
+	uuid, _ := run(fmt.Sprintf("blkid -s UUID -o value %s 2>/dev/null", disks[0]))
+	uuid = strings.TrimSpace(uuid)
+	if uuid != "" {
+		appendBtrfsFstab(uuid, mountPoint, mountOpts)
+		run("systemctl daemon-reload 2>/dev/null || true")
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	// Verify mount actually worked
+	// Try mount — multiple methods
+	mounted := false
+
+	// Method 1: mount by device
+	mountCmd := exec.Command("mount", "-t", "btrfs", "-o", mountOpts, disks[0], mountPoint)
+	mountResult, mountErr := mountCmd.CombinedOutput()
+	if mountErr == nil {
+		mounted = true
+		logMsg("Btrfs mount OK (by device): %s → %s", disks[0], mountPoint)
+	} else {
+		logMsg("Btrfs mount by device failed: %s (exit: %v)", string(mountResult), mountErr)
+	}
+
+	// Method 2: mount by fstab entry
+	if !mounted && uuid != "" {
+		mountCmd2 := exec.Command("mount", mountPoint)
+		mountResult2, mountErr2 := mountCmd2.CombinedOutput()
+		if mountErr2 == nil {
+			mounted = true
+			logMsg("Btrfs mount OK (by fstab): %s", mountPoint)
+		} else {
+			logMsg("Btrfs mount by fstab failed: %s (exit: %v)", string(mountResult2), mountErr2)
+		}
+	}
+
+	// Method 3: mount by label
+	if !mounted {
+		label := "nimbus-" + name
+		mountCmd3 := exec.Command("mount", "-t", "btrfs", "-o", mountOpts, "LABEL="+label, mountPoint)
+		mountResult3, mountErr3 := mountCmd3.CombinedOutput()
+		if mountErr3 == nil {
+			mounted = true
+			logMsg("Btrfs mount OK (by label): %s → %s", label, mountPoint)
+		} else {
+			logMsg("Btrfs mount by label failed: %s (exit: %v)", string(mountResult3), mountErr3)
+		}
+	}
+
+	if !mounted {
+		return map[string]interface{}{"error": "Btrfs created but could not mount. Check system logs."}
+	}
+
+	// Verify mount
 	verifyOut, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint))
 	if strings.TrimSpace(verifyOut) == "" {
-		return map[string]interface{}{"error": "Btrfs created but mount verification failed — filesystem not mounted"}
+		return map[string]interface{}{"error": "Btrfs created but mount verification failed"}
 	}
 
 	// ── Create subvolumes ──
@@ -161,13 +209,6 @@ func createPoolBtrfs(body map[string]interface{}) map[string]interface{} {
 
 	// ── Create standard dirs ──
 	createPoolDirs(mountPoint)
-
-	// ── Add to fstab ──
-	uuid, _ := run(fmt.Sprintf("blkid -s UUID -o value %s 2>/dev/null", disks[0]))
-	uuid = strings.TrimSpace(uuid)
-	if uuid != "" {
-		appendBtrfsFstab(uuid, mountPoint, mountOpts)
-	}
 
 	// ── Write identity file ──
 	writePoolIdentityBtrfs(mountPoint, name, profile, disks)
