@@ -111,12 +111,30 @@ func createPoolBtrfs(body map[string]interface{}) map[string]interface{} {
 
 	mountPoint := nimbusPoolsDir + "/" + name
 
+	// ── Force-unmount anything using these disks ──
+	for _, disk := range disks {
+		mountedAt, _ := run(fmt.Sprintf("findmnt -rn -o TARGET --source %s 2>/dev/null", disk))
+		for _, mp := range strings.Split(strings.TrimSpace(mountedAt), "\n") {
+			mp = strings.TrimSpace(mp)
+			if mp != "" {
+				run(fmt.Sprintf("fuser -mk %s 2>/dev/null || true", mp))
+				run(fmt.Sprintf("umount %s 2>/dev/null || true", mp))
+				run(fmt.Sprintf("umount -f -l %s 2>/dev/null || true", mp))
+				logMsg("createPoolBtrfs: force-unmounted %s from %s", disk, mp)
+			}
+		}
+		run(fmt.Sprintf("fuser -mk %s 2>/dev/null || true", disk))
+	}
+	time.Sleep(1 * time.Second)
+
 	// ── Wipe disks ──
 	for _, disk := range disks {
+		run(fmt.Sprintf("blkdiscard -f %s 2>/dev/null || true", disk))
 		run(fmt.Sprintf("wipefs -af %s 2>/dev/null || true", disk))
 		run(fmt.Sprintf("dd if=/dev/zero of=%s bs=1M count=10 conv=notrunc 2>/dev/null || true", disk))
-		run(fmt.Sprintf("partprobe %s 2>/dev/null || true", disk))
 	}
+	run("partprobe 2>/dev/null || true")
+	run("udevadm settle --timeout=5 2>/dev/null || true")
 	time.Sleep(1 * time.Second)
 
 	// ── Create Btrfs filesystem ──
@@ -314,42 +332,58 @@ func destroyPoolBtrfs(poolName string) map[string]interface{} {
 		run("groupdel nimos-share-docker-apps 2>/dev/null || true")
 	}
 
-	// ── 3. Kill processes and unmount submounts ──
+	// ── 3. Kill processes and unmount ──
 	if mountPoint != "" {
-		run(fmt.Sprintf("fuser -km %s 2>/dev/null || true", mountPoint))
-		// Unmount all submounts (overlay, bind, etc.) in reverse order
+		// Kill all processes using the mount point
+		run(fmt.Sprintf("fuser -mk %s 2>/dev/null || true", mountPoint))
+		time.Sleep(500 * time.Millisecond)
+
+		// Unmount all submounts first (overlay, bind, etc.) in reverse order
 		mountsOut, _ := run(fmt.Sprintf("findmnt -rn -o TARGET %s 2>/dev/null", mountPoint))
 		mounts := strings.Split(strings.TrimSpace(mountsOut), "\n")
 		for i := len(mounts) - 1; i >= 0; i-- {
 			m := strings.TrimSpace(mounts[i])
 			if m != "" && m != mountPoint {
-				run(fmt.Sprintf("umount -l %s 2>/dev/null || true", m))
+				run(fmt.Sprintf("fuser -mk %s 2>/dev/null || true", m))
+				run(fmt.Sprintf("umount %s 2>/dev/null || true", m))
 			}
 		}
-		run(fmt.Sprintf("umount -l %s 2>/dev/null || true", mountPoint))
-		run(fmt.Sprintf("umount -f %s 2>/dev/null || true", mountPoint))
+
+		// Try normal unmount first
+		umountOut, _ := run(fmt.Sprintf("umount %s 2>&1", mountPoint))
+		if strings.Contains(umountOut, "busy") || strings.Contains(umountOut, "target is busy") {
+			// Force + lazy only if normal fails
+			run(fmt.Sprintf("umount -f -l %s 2>/dev/null || true", mountPoint))
+		}
 	}
 
-	// Kill processes on disks and force unmount
+	// Kill processes on individual disks
 	for _, disk := range poolDisks {
-		run(fmt.Sprintf("fuser -km %s 2>/dev/null || true", disk))
+		run(fmt.Sprintf("fuser -mk %s 2>/dev/null || true", disk))
 	}
 
-	// Wait and verify unmount completed
+	// Wait for kernel to release
 	time.Sleep(2 * time.Second)
+
+	// Verify unmount completed
 	if mountPoint != "" {
 		if out, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint)); strings.TrimSpace(out) != "" {
-			// Still mounted — force harder
-			run(fmt.Sprintf("umount -f %s 2>/dev/null || true", mountPoint))
+			run(fmt.Sprintf("fuser -mk %s 2>/dev/null || true", mountPoint))
+			run(fmt.Sprintf("umount -f -l %s 2>/dev/null || true", mountPoint))
 			time.Sleep(1 * time.Second)
 		}
 	}
 
 	// ── 4. Wipe filesystem signatures ──
 	for _, disk := range poolDisks {
+		// Force kernel to forget the device
+		run(fmt.Sprintf("blkdiscard -f %s 2>/dev/null || true", disk))
 		run(fmt.Sprintf("wipefs -af %s 2>/dev/null || true", disk))
 		run(fmt.Sprintf("dd if=/dev/zero of=%s bs=1M count=10 conv=notrunc 2>/dev/null || true", disk))
 	}
+	// Force kernel to re-read and wait for udev
+	run("partprobe 2>/dev/null || true")
+	run("udevadm settle --timeout=5 2>/dev/null || true")
 
 	// ── 5. Remove mount point ──
 	if mountPoint != "" && strings.HasPrefix(mountPoint, nimbusPoolsDir) {
