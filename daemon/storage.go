@@ -1516,6 +1516,39 @@ func startStorageMonitoring() {
 }
 
 func cleanOrphanMountPoints() {
+	conf := getStorageConfigFull()
+	confPools, _ := conf["pools"].([]interface{})
+
+	for _, poolRaw := range confPools {
+		pm, _ := poolRaw.(map[string]interface{})
+		if pm == nil {
+			continue
+		}
+		mountPoint, _ := pm["mountPoint"].(string)
+		if mountPoint == "" || !strings.HasPrefix(mountPoint, nimbusPoolsDir) {
+			continue
+		}
+
+		// Check if directory exists
+		if _, err := os.Stat(mountPoint); err != nil {
+			continue // doesn't exist, nothing to clean
+		}
+
+		// Check if actually mounted
+		mountSrc, ok := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint))
+		if ok && strings.TrimSpace(mountSrc) != "" {
+			rootSrc, _ := run("findmnt -n -o SOURCE / 2>/dev/null")
+			if strings.TrimSpace(mountSrc) != strings.TrimSpace(rootSrc) {
+				continue // properly mounted on a real device
+			}
+		}
+
+		// Directory exists but not mounted on a real device — remove it
+		// to prevent any process from writing to system disk
+		os.RemoveAll(mountPoint)
+		logMsg("Removed orphan mount point %s (pool disk not mounted)", mountPoint)
+	}
+}
 
 // ═══════════════════════════════════
 // Unified Storage + Docker Startup
@@ -1569,26 +1602,21 @@ func startupStorageAndDocker() {
 		case "zfs":
 			zpoolName, _ := pm["zpoolName"].(string)
 			if zpoolName != "" {
-				// Import if needed
 				if out, _ := run(fmt.Sprintf("zpool list -H -o name %s 2>/dev/null", zpoolName)); strings.TrimSpace(out) == "" {
 					run(fmt.Sprintf("zpool import -f %s 2>/dev/null || true", zpoolName))
 				}
-				// Set mountpoint and mount
 				run(fmt.Sprintf("zfs set mountpoint=%s %s 2>/dev/null", mountPoint, zpoolName))
 				run(fmt.Sprintf("zfs mount %s 2>/dev/null || true", zpoolName))
-				// Verify
 				if out, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint)); strings.TrimSpace(out) != "" {
 					mounted = true
 				}
 			}
 
 		case "btrfs":
-			// Try mount from fstab first
 			run(fmt.Sprintf("mount %s 2>/dev/null || true", mountPoint))
 			if out, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint)); strings.TrimSpace(out) != "" {
 				mounted = true
 			} else {
-				// Try mounting from disk directly using label
 				label := "nimbus-" + poolName
 				run(fmt.Sprintf("mount -t btrfs -o defaults,noatime,compress=zstd:3 LABEL=%s %s 2>/dev/null || true", label, mountPoint))
 				if out2, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint)); strings.TrimSpace(out2) != "" {
@@ -1597,7 +1625,6 @@ func startupStorageAndDocker() {
 			}
 
 		default:
-			// mdadm / ext4 — try fstab
 			run(fmt.Sprintf("mount %s 2>/dev/null || true", mountPoint))
 			if out, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint)); strings.TrimSpace(out) != "" {
 				mounted = true
@@ -1624,14 +1651,10 @@ func startupStorageAndDocker() {
 		if mountPoint == "" {
 			continue
 		}
-		// Only create dirs if the pool is actually mounted
-		if !isPathOnMountedPool(filepath.Join(mountPoint, "test-check")) {
-			// Check with findmnt directly
-			mountSrc, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint))
-			rootSrc, _ := run("findmnt -n -o SOURCE / 2>/dev/null")
-			if strings.TrimSpace(mountSrc) == "" || strings.TrimSpace(mountSrc) == strings.TrimSpace(rootSrc) {
-				continue // not mounted, skip
-			}
+		mountSrc, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint))
+		rootSrc, _ := run("findmnt -n -o SOURCE / 2>/dev/null")
+		if strings.TrimSpace(mountSrc) == "" || strings.TrimSpace(mountSrc) == strings.TrimSpace(rootSrc) {
+			continue
 		}
 		createPoolDirs(mountPoint)
 	}
@@ -1644,13 +1667,11 @@ func startupStorageAndDocker() {
 	if isInstalled && dockerPath != "" {
 		logMsg("startup: Docker configured at %s", dockerPath)
 
-		// Verify the docker path is on a mounted pool
 		mountSrc, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", filepath.Dir(dockerPath)))
 		rootSrc, _ := run("findmnt -n -o SOURCE / 2>/dev/null")
 		poolMounted := strings.TrimSpace(mountSrc) != "" && strings.TrimSpace(mountSrc) != strings.TrimSpace(rootSrc)
 
 		if !poolMounted {
-			// Docker path's pool is not mounted — try to find the right pool
 			logMsg("startup: Docker path '%s' not on mounted pool — searching...", dockerPath)
 			if dp, err := getDockerPath(); err == nil && dp != dockerPath {
 				logMsg("startup: Correcting Docker path from '%s' to '%s'", dockerPath, dp)
@@ -1660,10 +1681,7 @@ func startupStorageAndDocker() {
 			}
 		}
 
-		// Ensure Docker data-root matches
 		dockerDataPath := filepath.Join(dockerPath, "data")
-		expectedDaemonConf := fmt.Sprintf(`{"data-root":"%s"}`, dockerDataPath)
-
 		currentDaemon, _ := os.ReadFile("/etc/docker/daemon.json")
 		if !strings.Contains(string(currentDaemon), dockerDataPath) {
 			logMsg("startup: Fixing Docker daemon.json — data-root → %s", dockerDataPath)
@@ -1672,21 +1690,16 @@ func startupStorageAndDocker() {
 			data, _ := json.MarshalIndent(daemonConf, "", "  ")
 			os.WriteFile("/etc/docker/daemon.json", data, 0644)
 			run("systemctl restart docker 2>/dev/null || true")
-		} else {
-			_ = expectedDaemonConf // suppress unused
 		}
 
-		// Ensure Docker directories exist
 		os.MkdirAll(filepath.Join(dockerPath, "data"), 0755)
 		os.MkdirAll(filepath.Join(dockerPath, "containers"), 0755)
 		os.MkdirAll(filepath.Join(dockerPath, "stacks"), 0755)
 		os.MkdirAll(filepath.Join(dockerPath, "volumes"), 0755)
 
-		// Ensure docker-apps share exists
 		existingShare, _ := dbSharesGet("docker-apps")
 		if existingShare == nil {
 			dockerSharePath := filepath.Join(dockerPath, "containers")
-			// Find pool name
 			poolName := ""
 			for _, poolRaw := range confPools {
 				pm, _ := poolRaw.(map[string]interface{})
@@ -1725,40 +1738,6 @@ func startupStorageAndDocker() {
 	}
 
 	logMsg("startup: Storage and Docker initialization complete")
-}
-
-	conf := getStorageConfigFull()
-	confPools, _ := conf["pools"].([]interface{})
-
-	for _, poolRaw := range confPools {
-		pm, _ := poolRaw.(map[string]interface{})
-		if pm == nil {
-			continue
-		}
-		mountPoint, _ := pm["mountPoint"].(string)
-		if mountPoint == "" || !strings.HasPrefix(mountPoint, nimbusPoolsDir) {
-			continue
-		}
-
-		// Check if directory exists
-		if _, err := os.Stat(mountPoint); err != nil {
-			continue // doesn't exist, nothing to clean
-		}
-
-		// Check if actually mounted
-		mountSrc, ok := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint))
-		if ok && strings.TrimSpace(mountSrc) != "" {
-			rootSrc, _ := run("findmnt -n -o SOURCE / 2>/dev/null")
-			if strings.TrimSpace(mountSrc) != strings.TrimSpace(rootSrc) {
-				continue // properly mounted on a real device
-			}
-		}
-
-		// Directory exists but not mounted on a real device — remove it
-		// to prevent any process from writing to system disk
-		os.RemoveAll(mountPoint)
-		logMsg("Removed orphan mount point %s (pool disk not mounted)", mountPoint)
-	}
 }
 
 // ═══════════════════════════════════
