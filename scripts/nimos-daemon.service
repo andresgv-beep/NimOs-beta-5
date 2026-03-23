@@ -1,7 +1,7 @@
 [Unit]
 Description=NimOS Permissions Daemon
-Documentation=https://github.com/andresgv-beep/NimOs-beta-4
-After=local-fs.target
+Documentation=https://github.com/andresgv-beep/NimOs-beta-5
+After=local-fs.target zfs-mount.service
 Before=nimbusos.service
 
 [Service]
@@ -16,7 +16,7 @@ RestartSec=3
 PrivateNetwork=false
 ProtectHome=false
 ProtectSystem=false
-ReadWritePaths=/run /nimbus /var/lib/nimbusos /etc /home /tmp /var/tmp /var/log /var/cache /opt/nimbusos /usr/local/bin /usr/bin /usr/sbin /usr/lib /usr/share /var/lib/docker /var/lib/containerd /var/run/docker.sock
+ReadWritePaths=/run /nimbus /var/lib /etc /home /tmp /var/tmp /var/log /var/cache /opt/nimbusos /usr/local/bin /usr/bin /usr/sbin /usr/lib /usr/share /var/run
 NoNewPrivileges=false
 
 # Logging
