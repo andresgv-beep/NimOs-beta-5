@@ -183,12 +183,14 @@ func corsMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://raw.githubusercontent.com; connect-src 'self' https://raw.githubusercontent.com; frame-src 'self' http://127.0.0.1:* http://localhost:*")
 		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
 
 		// CORS — only reflect same-host or local origins
 		origin := r.Header.Get("Origin")
 		if origin != "" {
-			// Only allow origins from the same host or local network
-			if isLocalOrigin(origin) {
+			// Allow origins from local network OR the same host the request came to
+			if isLocalOrigin(origin) || isSameHostOrigin(origin, r) {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
 				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -263,6 +265,46 @@ func isLocalOrigin(origin string) bool {
 			strings.HasPrefix(host, "172.30.") || strings.HasPrefix(host, "172.31.") {
 			return true
 		}
+	}
+
+	return false
+}
+
+// isSameHostOrigin checks if the origin matches the Host header of the request.
+// This allows CORS for DDNS domains (e.g. nimosbarraca.duckdns.org:5009)
+// without hardcoding them — if the browser sent the request to that host,
+// the origin from that same host is legitimate.
+func isSameHostOrigin(origin string, r *http.Request) bool {
+	if origin == "" {
+		return false
+	}
+
+	// Extract hostname from origin
+	originHost := strings.ToLower(origin)
+	if idx := strings.Index(originHost, "://"); idx != -1 {
+		originHost = originHost[idx+3:]
+	}
+	originHost = strings.TrimRight(originHost, "/")
+
+	// Get the Host header (this is what the browser connected to)
+	requestHost := strings.ToLower(r.Host)
+
+	// Direct match: origin host == request host (including port)
+	if originHost == requestHost {
+		return true
+	}
+
+	// Match without port: origin hostname == request hostname
+	originHostNoPort := originHost
+	if idx := strings.LastIndex(originHostNoPort, ":"); idx != -1 {
+		originHostNoPort = originHostNoPort[:idx]
+	}
+	requestHostNoPort := requestHost
+	if idx := strings.LastIndex(requestHostNoPort, ":"); idx != -1 {
+		requestHostNoPort = requestHostNoPort[:idx]
+	}
+	if originHostNoPort == requestHostNoPort {
+		return true
 	}
 
 	return false

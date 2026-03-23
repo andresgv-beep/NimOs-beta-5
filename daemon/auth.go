@@ -654,8 +654,18 @@ func authLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify credentials
+	// IMPORTANT: Always run bcrypt comparison even if user doesn't exist
+	// This prevents timing attacks that reveal valid usernames
 	storedPwd, err := dbUsersVerifyPassword(username)
-	if err != nil || !verifyPassword(password, storedPwd) {
+	if err != nil {
+		// User doesn't exist — run a dummy bcrypt to equalize timing
+		verifyPassword(password, "$2a$10$0000000000000000000000uDummyHashToPreventTimingAttack0000")
+		recordFailedAttempt("ip:" + ip)
+		recordFailedAttempt("user:" + username)
+		jsonError(w, 401, "Invalid credentials")
+		return
+	}
+	if !verifyPassword(password, storedPwd) {
 		recordFailedAttempt("ip:" + ip)
 		recordFailedAttempt("user:" + username)
 		jsonError(w, 401, "Invalid credentials")
