@@ -1676,93 +1676,113 @@ func startupStorageAndDocker() {
 	}
 
 	// ── 3. Fix Docker configuration ──
+	// Check if Docker binary exists AND we have a mounted pool
+	_, dockerBinaryExists := run("which docker 2>/dev/null")
 	dockerConf := getDockerConfigGo()
 	isInstalled, _ := dockerConf["installed"].(bool)
 	dockerPath, _ := dockerConf["path"].(string)
 
-	if isInstalled && dockerPath != "" {
-		logMsg("startup: Docker configured at %s", dockerPath)
+	if dockerBinaryExists && mountedPools > 0 {
+		// Docker binary exists and pool is mounted — ensure it's configured and running
 
-		mountSrc, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", filepath.Dir(dockerPath)))
-		rootSrc, _ := run("findmnt -n -o SOURCE / 2>/dev/null")
-		poolMounted := strings.TrimSpace(mountSrc) != "" && strings.TrimSpace(mountSrc) != strings.TrimSpace(rootSrc)
-
-		if !poolMounted {
-			logMsg("startup: Docker path '%s' not on mounted pool — searching...", dockerPath)
-			if dp, err := getDockerPath(); err == nil && dp != dockerPath {
-				logMsg("startup: Correcting Docker path from '%s' to '%s'", dockerPath, dp)
+		// Find docker path from config or derive from first mounted pool
+		if dockerPath == "" || !isInstalled {
+			// Derive from first mounted pool
+			if dp, err := getDockerPath(); err == nil {
 				dockerPath = dp
-				dockerConf["path"] = dp
-				saveDockerConfigGo(dockerConf)
+				logMsg("startup: Docker path derived from pool: %s", dockerPath)
 			}
 		}
 
-		dockerDataPath := filepath.Join(dockerPath, "data")
-		currentDaemon, _ := os.ReadFile("/etc/docker/daemon.json")
-		if !strings.Contains(string(currentDaemon), dockerDataPath) {
-			logMsg("startup: Fixing Docker daemon.json — data-root → %s", dockerDataPath)
-			os.MkdirAll("/etc/docker", 0755)
-			daemonConf := map[string]interface{}{"data-root": dockerDataPath}
-			data, _ := json.MarshalIndent(daemonConf, "", "  ")
-			os.WriteFile("/etc/docker/daemon.json", data, 0644)
-			run("systemctl restart docker 2>/dev/null || true")
-		}
+		if dockerPath != "" {
+			logMsg("startup: Docker configured at %s", dockerPath)
 
-		os.MkdirAll(filepath.Join(dockerPath, "data"), 0755)
-		os.MkdirAll(filepath.Join(dockerPath, "containers"), 0755)
-		os.MkdirAll(filepath.Join(dockerPath, "stacks"), 0755)
-		os.MkdirAll(filepath.Join(dockerPath, "volumes"), 0755)
+			// Verify docker path is on a mounted pool
+			mountSrc, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", filepath.Dir(dockerPath)))
+			rootSrc, _ := run("findmnt -n -o SOURCE / 2>/dev/null")
+			poolMounted := strings.TrimSpace(mountSrc) != "" && strings.TrimSpace(mountSrc) != strings.TrimSpace(rootSrc)
 
-		existingShare, _ := dbSharesGet("docker-apps")
-		if existingShare == nil {
-			dockerSharePath := filepath.Join(dockerPath, "containers")
-			poolName := ""
-			for _, poolRaw := range confPools {
-				pm, _ := poolRaw.(map[string]interface{})
-				mp, _ := pm["mountPoint"].(string)
-				if mp != "" && strings.HasPrefix(dockerPath, mp) {
-					poolName, _ = pm["name"].(string)
-					break
+			if !poolMounted {
+				if dp, err := getDockerPath(); err == nil && dp != dockerPath {
+					logMsg("startup: Correcting Docker path from '%s' to '%s'", dockerPath, dp)
+					dockerPath = dp
 				}
 			}
 
-			shareGroup := "nimos-share-docker-apps"
-			run(fmt.Sprintf("groupadd -f %s", shareGroup))
-			run(fmt.Sprintf(`chown root:%s "%s"`, shareGroup, dockerSharePath))
-			run(fmt.Sprintf(`chmod 2775 "%s"`, dockerSharePath))
-			run(fmt.Sprintf(`setfacl -d -m g:%s:rwx "%s" 2>/dev/null || true`, shareGroup, dockerSharePath))
-			run(fmt.Sprintf("usermod -aG %s nimbus 2>/dev/null || true", shareGroup))
-			run(fmt.Sprintf("usermod -aG %s nimos 2>/dev/null || true", shareGroup))
+			dockerDataPath := filepath.Join(dockerPath, "data")
 
-			dbSharesCreate("docker-apps", "Docker Apps", "Application data for Docker containers", dockerSharePath, poolName, poolName, "system")
+			// Ensure daemon.json points to pool
+			os.MkdirAll("/etc/docker", 0755)
+			currentDaemon, _ := os.ReadFile("/etc/docker/daemon.json")
+			if !strings.Contains(string(currentDaemon), dockerDataPath) {
+				logMsg("startup: Setting Docker daemon.json → data-root=%s", dockerDataPath)
+				daemonConf := map[string]interface{}{"data-root": dockerDataPath}
+				data, _ := json.MarshalIndent(daemonConf, "", "  ")
+				os.WriteFile("/etc/docker/daemon.json", data, 0644)
+			}
 
-			if users, err := dbUsersList(); err == nil {
-				for _, u := range users {
-					role, _ := u["role"].(string)
-					username, _ := u["username"].(string)
-					if role == "admin" && username != "" {
-						dbShareSetPermission("docker-apps", username, "rw")
-						run(fmt.Sprintf("usermod -aG docker %s 2>/dev/null || true", username))
-						run(fmt.Sprintf("usermod -aG %s %s 2>/dev/null || true", shareGroup, username))
+			// Ensure directories exist
+			os.MkdirAll(filepath.Join(dockerPath, "data"), 0755)
+			os.MkdirAll(filepath.Join(dockerPath, "containers"), 0755)
+			os.MkdirAll(filepath.Join(dockerPath, "stacks"), 0755)
+			os.MkdirAll(filepath.Join(dockerPath, "volumes"), 0755)
+
+			// Update docker.json
+			dockerConf["installed"] = true
+			dockerConf["path"] = dockerPath
+			dockerConf["dockerAvailable"] = true
+			saveDockerConfigGo(dockerConf)
+
+			// Ensure docker-apps share exists
+			existingShare, _ := dbSharesGet("docker-apps")
+			if existingShare == nil {
+				dockerSharePath := filepath.Join(dockerPath, "containers")
+				poolName := ""
+				for _, poolRaw := range confPools {
+					pm, _ := poolRaw.(map[string]interface{})
+					mp, _ := pm["mountPoint"].(string)
+					if mp != "" && strings.HasPrefix(dockerPath, mp) {
+						poolName, _ = pm["name"].(string)
+						break
 					}
 				}
+
+				shareGroup := "nimos-share-docker-apps"
+				run(fmt.Sprintf("groupadd -f %s", shareGroup))
+				run(fmt.Sprintf(`chown root:%s "%s"`, shareGroup, dockerSharePath))
+				run(fmt.Sprintf(`chmod 2775 "%s"`, dockerSharePath))
+				run(fmt.Sprintf(`setfacl -d -m g:%s:rwx "%s" 2>/dev/null || true`, shareGroup, dockerSharePath))
+				run(fmt.Sprintf("usermod -aG %s nimbus 2>/dev/null || true", shareGroup))
+				run(fmt.Sprintf("usermod -aG %s nimos 2>/dev/null || true", shareGroup))
+
+				dbSharesCreate("docker-apps", "Docker Apps", "Application data for Docker containers", dockerSharePath, poolName, poolName, "system")
+
+				if users, err := dbUsersList(); err == nil {
+					for _, u := range users {
+						role, _ := u["role"].(string)
+						username, _ := u["username"].(string)
+						if role == "admin" && username != "" {
+							dbShareSetPermission("docker-apps", username, "rw")
+							run(fmt.Sprintf("usermod -aG docker %s 2>/dev/null || true", username))
+							run(fmt.Sprintf("usermod -aG %s %s 2>/dev/null || true", shareGroup, username))
+						}
+					}
+				}
+				logMsg("startup: Docker share 'docker-apps' created")
 			}
-			logMsg("startup: Docker share 'docker-apps' created")
-		}
 
-		logMsg("startup: Docker configuration verified")
-
-		// ── 4. Ensure Docker is running ──
-		// Docker may be disabled from a previous pool destroy — re-enable and start
-		if _, ok := run("which docker 2>/dev/null"); ok {
+			// Enable and start Docker
 			run("systemctl enable docker.service docker.socket 2>/dev/null || true")
-			// Check if Docker is running
 			if _, dockerRunning := run("docker info 2>/dev/null"); !dockerRunning {
 				logMsg("startup: Docker not running — starting...")
 				run("systemctl start docker 2>/dev/null || true")
 			}
-			logMsg("startup: Docker is running")
+			logMsg("startup: Docker is running on pool")
 		}
+	} else if !dockerBinaryExists {
+		logMsg("startup: Docker not installed — skipping")
+	} else if mountedPools == 0 {
+		logMsg("startup: No pools mounted — Docker disabled")
 	}
 
 	logMsg("startup: Storage and Docker initialization complete")
