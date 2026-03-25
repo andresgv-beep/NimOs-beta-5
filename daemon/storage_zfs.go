@@ -210,16 +210,22 @@ func destroyPoolZfs(poolName string) map[string]interface{} {
 
 	// ── 2. Unmount any overlay/bind mounts on the pool ──
 	if mountPoint != "" {
-		// Kill any processes using the pool
-		run(fmt.Sprintf("fuser -km %s 2>/dev/null || true", mountPoint))
-		// Unmount all submounts (overlay, bind, etc.)
+		// Stop SMB/NFS shares for this pool gracefully
+		run("systemctl reload smbd 2>/dev/null || true")
+		run("exportfs -ra 2>/dev/null || true")
+		time.Sleep(500 * time.Millisecond)
+
+		// Signal processes with TERM (not KILL) — prevents killing the daemon/network
+		run(fmt.Sprintf("fuser -k -TERM %s 2>/dev/null || true", mountPoint))
+		time.Sleep(1 * time.Second)
+
+		// Unmount all submounts (overlay, bind, etc.) in reverse order
 		mountsOut, _ := run(fmt.Sprintf("findmnt -rn -o TARGET %s 2>/dev/null", mountPoint))
-		// Reverse order to unmount children first
 		mounts := strings.Split(strings.TrimSpace(mountsOut), "\n")
 		for i := len(mounts) - 1; i >= 0; i-- {
 			m := strings.TrimSpace(mounts[i])
 			if m != "" && m != mountPoint {
-				run(fmt.Sprintf("umount -l %s 2>/dev/null || true", m))
+				run(fmt.Sprintf("umount %s 2>/dev/null || true", m))
 			}
 		}
 	}

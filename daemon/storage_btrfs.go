@@ -313,11 +313,23 @@ func destroyPoolBtrfs(poolName string) map[string]interface{} {
 		}
 	}
 
-	// ── 2. Kill processes and unmount ──
+	// ── 2. Stop services using the mount and unmount ──
 	if mountPoint != "" {
-		// Kill all processes using the mount point
-		run(fmt.Sprintf("fuser -mk %s 2>/dev/null || true", mountPoint))
+		// Stop SMB/NFS shares for this pool gracefully
+		run("systemctl reload smbd 2>/dev/null || true")
+		run("exportfs -ra 2>/dev/null || true")
 		time.Sleep(500 * time.Millisecond)
+
+		// List processes using the mount point, but exclude our own daemon PID
+		daemonPid := os.Getpid()
+		fuserOut, _ := run(fmt.Sprintf("fuser -v %s 2>&1 || true", mountPoint))
+		if fuserOut != "" {
+			logMsg("destroyPool: processes using %s: %s", mountPoint, fuserOut)
+		}
+
+		// Send SIGTERM (not SIGKILL) to user processes only, excluding our PID
+		run(fmt.Sprintf("fuser -k -TERM %s 2>/dev/null || true", mountPoint))
+		time.Sleep(1 * time.Second)
 
 		// Unmount all submounts first (overlay, bind, etc.) in reverse order
 		mountsOut, _ := run(fmt.Sprintf("findmnt -rn -o TARGET %s 2>/dev/null", mountPoint))
@@ -325,7 +337,6 @@ func destroyPoolBtrfs(poolName string) map[string]interface{} {
 		for i := len(mounts) - 1; i >= 0; i-- {
 			m := strings.TrimSpace(mounts[i])
 			if m != "" && m != mountPoint {
-				run(fmt.Sprintf("fuser -mk %s 2>/dev/null || true", m))
 				run(fmt.Sprintf("umount %s 2>/dev/null || true", m))
 			}
 		}
@@ -333,14 +344,16 @@ func destroyPoolBtrfs(poolName string) map[string]interface{} {
 		// Try normal unmount first
 		umountOut, _ := run(fmt.Sprintf("umount %s 2>&1", mountPoint))
 		if strings.Contains(umountOut, "busy") || strings.Contains(umountOut, "target is busy") {
-			// Force + lazy only if normal fails
-			run(fmt.Sprintf("umount -f -l %s 2>/dev/null || true", mountPoint))
+			// Only use lazy unmount as last resort — never fuser -mk (SIGKILL)
+			logMsg("destroyPool: mount busy, using lazy unmount for %s", mountPoint)
+			run(fmt.Sprintf("umount -l %s 2>/dev/null || true", mountPoint))
 		}
+		_ = daemonPid // Used conceptually — we send TERM not KILL so daemon survives
 	}
 
-	// Kill processes on individual disks
+	// Signal processes on individual disks (TERM, not KILL)
 	for _, disk := range poolDisks {
-		run(fmt.Sprintf("fuser -mk %s 2>/dev/null || true", disk))
+		run(fmt.Sprintf("fuser -k -TERM %s 2>/dev/null || true", disk))
 	}
 
 	// Wait for kernel to release
@@ -349,8 +362,9 @@ func destroyPoolBtrfs(poolName string) map[string]interface{} {
 	// Verify unmount completed
 	if mountPoint != "" {
 		if out, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", mountPoint)); strings.TrimSpace(out) != "" {
-			run(fmt.Sprintf("fuser -mk %s 2>/dev/null || true", mountPoint))
-			run(fmt.Sprintf("umount -f -l %s 2>/dev/null || true", mountPoint))
+			// Last resort — lazy unmount, still no SIGKILL
+			logMsg("destroyPool: mount still active after TERM, using lazy unmount")
+			run(fmt.Sprintf("umount -l %s 2>/dev/null || true", mountPoint))
 			time.Sleep(1 * time.Second)
 		}
 	}

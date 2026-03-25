@@ -112,6 +112,24 @@ func checkPoolPath(poolPath string) error {
 	if _, err := os.Stat(poolPath); os.IsNotExist(err) {
 		return fmt.Errorf("poolPath does not exist: %s", poolPath)
 	}
+	// CRITICAL: Verify the pool filesystem is actually mounted, not just a rootfs directory.
+	// Without this check, shares get silently created on the rootfs when the pool is unmounted.
+	mountSrc, _ := run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", poolPath))
+	if strings.TrimSpace(mountSrc) == "" {
+		// Not a mount point — try to mount it
+		logMsg("checkPoolPath: %s is not mounted — attempting mount...", poolPath)
+		run(fmt.Sprintf("mount %s 2>/dev/null || true", poolPath))
+		mountSrc, _ = run(fmt.Sprintf("findmnt -n -o SOURCE %s 2>/dev/null", poolPath))
+		if strings.TrimSpace(mountSrc) == "" {
+			return fmt.Errorf("pool filesystem not mounted at %s — cannot create share", poolPath)
+		}
+		logMsg("checkPoolPath: auto-mounted %s successfully", poolPath)
+	}
+	// Also verify it's not just the root filesystem
+	rootSrc, _ := run("findmnt -n -o SOURCE / 2>/dev/null")
+	if strings.TrimSpace(mountSrc) == strings.TrimSpace(rootSrc) {
+		return fmt.Errorf("pool filesystem not mounted at %s (path is on root filesystem)", poolPath)
+	}
 	return nil
 }
 
