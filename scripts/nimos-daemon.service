@@ -16,7 +16,7 @@ Before=nimbusos.service
 # Type=notify: systemd espera nuestra señal "ready" antes de
 # arrancar nimbusos.service. La señal la mandamos con systemd-notify
 # al final del startup, cuando los pools ya están montados.
-Type=notify
+Type=simple
 NotifyAccess=main
 
 User=root
